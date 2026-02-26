@@ -1,0 +1,31 @@
+{
+  "name": "haibot-console",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
+    "@vueuse/core": "^14.2.1",
+    "axios": "^1.7.7",
+    "element-plus": "^2.8.4",
+    "highlight.js": "^11.10.0",
+    "lucide-vue-next": "^0.575.0",
+    "marked": "^17.0.3",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.29",
+    "vue-i18n": "^11.2.8",
+    "vue-router": "^5.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.1",
+    "@vitejs/plugin-vue": "^6.0.4",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vue-tsc": "^3.2.5"
+  }
+}
