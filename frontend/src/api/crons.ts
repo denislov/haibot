@@ -2,7 +2,7 @@ import api from './index'
 import type { CronJobSpec, CronJobView } from '@/types'
 
 export const listJobs = () =>
-  api.get<CronJobView[]>('/cron/jobs').then((r) => r.data)
+  api.get<CronJobSpec[]>('/cron/jobs').then((r) => r.data)
 
 export const getJob = (id: string) =>
   api.get<CronJobView>(`/cron/jobs/${id}`).then((r) => r.data)

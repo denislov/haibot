@@ -8,3 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
+backend/haibot/providers/providers.json
+backend/haibot/envs/envs.json
+logs/

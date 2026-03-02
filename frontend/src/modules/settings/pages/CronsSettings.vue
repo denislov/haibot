@@ -9,18 +9,16 @@
     </div>
     <div v-if="loading" class="loading-state"><el-icon class="is-loading"><Loading /></el-icon></div>
     <div v-else class="jobs-list">
-      <div v-for="job in jobs" :key="job.spec.id" class="job-card" @click="openEdit(job)">
+      <div v-for="job in jobs" :key="job.id" class="job-card" @click="openEdit(job)">
         <div class="job-header">
-          <span class="job-name">{{ job.spec.name }}</span>
-          <span class="job-status" :class="job.spec.enabled ? 'on' : 'off'">{{ job.spec.enabled ? $t('common.enabled') : $t('common.disabled') }}</span>
+          <span class="job-name">{{ job.name }}</span>
+          <span class="job-status" :class="job.enabled ? 'on' : 'off'">{{ job.enabled ? $t('common.enabled') : $t('common.disabled') }}</span>
         </div>
         <div class="job-meta">
-          <span class="mono">{{ job.spec.schedule.cron }}</span>
-          <span v-if="job.state.next_run_at" class="dot-sep">·</span>
-          <span v-if="job.state.next_run_at">Next: {{ new Date(job.state.next_run_at).toLocaleString() }}</span>
+          <span class="mono">{{ job.schedule.cron }}</span>
         </div>
         <div class="job-actions" @click.stop>
-          <el-switch :model-value="job.spec.enabled" size="small" @change="toggleJob(job)" />
+          <el-switch :model-value="job.enabled" size="small" @change="toggleJob(job)" />
           <el-button size="small" link @click.stop="triggerJob(job)"><el-icon><VideoPlay /></el-icon>{{ $t('settings.crons.run') }}</el-button>
           <el-button size="small" link type="danger" @click.stop="handleDelete(job)"><el-icon><Delete /></el-icon></el-button>
         </div>
@@ -61,13 +59,13 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { listJobs, createJob, updateJob, deleteJob, pauseJob, resumeJob, runJob } from '@/api/crons'
-import type { CronJobView, CronJobSpec } from '@/types'
+import type { CronJobSpec } from '@/types'
 
-const jobs = ref<CronJobView[]>([])
+const jobs = ref<CronJobSpec[]>([])
 const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
-const editingJob = ref<CronJobView | null>(null)
+const editingJob = ref<CronJobSpec | null>(null)
 const form = reactive({ name: '', cron: '', timezone: 'Asia/Shanghai', task_type: 'text' as 'text' | 'agent', text: '', queryInput: '', channel: 'console' })
 
 async function loadJobs() {
@@ -78,9 +76,9 @@ async function loadJobs() {
 
 function openCreate() { editingJob.value = null; Object.assign(form, { name: '', cron: '', timezone: 'Asia/Shanghai', task_type: 'text', text: '', queryInput: '', channel: 'console' }); dialogVisible.value = true }
 
-function openEdit(job: CronJobView) {
+function openEdit(job: CronJobSpec) {
   editingJob.value = job
-  Object.assign(form, { name: job.spec.name, cron: job.spec.schedule.cron, timezone: job.spec.schedule.timezone, task_type: job.spec.task_type, text: job.spec.text || '', queryInput: (job.spec.request?.input as string) || '', channel: job.spec.dispatch.channel })
+  Object.assign(form, { name: job.name, cron: job.schedule.cron, timezone: job.schedule.timezone, task_type: job.task_type, text: job.text || '', queryInput: JSON.stringify(job.request?.input, null, 2) || '', channel: job.dispatch.channel })
   dialogVisible.value = true
 }
 
@@ -90,7 +88,7 @@ function buildSpec(): Partial<CronJobSpec> {
     schedule: { type: 'cron', cron: form.cron, timezone: form.timezone },
     task_type: form.task_type,
     text: form.task_type === 'text' ? form.text : undefined,
-    request: form.task_type === 'agent' ? { input: form.queryInput } : undefined,
+    request: form.task_type === 'agent' ? { input: JSON.parse(form.queryInput) } : undefined,
     dispatch: { type: 'channel', channel: form.channel, target: { user_id: 'cron', session_id: '' }, mode: 'final', meta: {} },
     runtime: { max_concurrency: 1, timeout_seconds: 300, misfire_grace_seconds: 60 },
   }
@@ -100,27 +98,27 @@ async function save() {
   if (!form.name.trim()) { ElMessage.warning('Name required'); return }
   saving.value = true
   try {
-    if (editingJob.value) await updateJob(editingJob.value.spec.id, buildSpec() as CronJobSpec)
+    if (editingJob.value) await updateJob(editingJob.value.id, buildSpec() as CronJobSpec)
     else await createJob(buildSpec() as CronJobSpec)
     dialogVisible.value = false; await loadJobs()
   } catch (e: unknown) { ElMessage.error(String(e)) }
   finally { saving.value = false }
 }
 
-async function toggleJob(job: CronJobView) {
-  try { job.spec.enabled ? await pauseJob(job.spec.id) : await resumeJob(job.spec.id); await loadJobs() }
+async function toggleJob(job: CronJobSpec) {
+  try { job.enabled ? await pauseJob(job.id) : await resumeJob(job.id); await loadJobs() }
   catch (e: unknown) { ElMessage.error(String(e)) }
 }
 
-async function triggerJob(job: CronJobView) {
-  try { await runJob(job.spec.id); ElMessage.success('Triggered') }
+async function triggerJob(job: CronJobSpec) {
+  try { await runJob(job.id); ElMessage.success('Triggered') }
   catch (e: unknown) { ElMessage.error(String(e)) }
 }
 
-async function handleDelete(job: CronJobView) {
+async function handleDelete(job: CronJobSpec) {
   try {
-    await ElMessageBox.confirm(`Delete "${job.spec.name}"?`, 'Confirm', { type: 'warning' })
-    await deleteJob(job.spec.id); await loadJobs()
+    await ElMessageBox.confirm(`Delete "${job.name}"?`, 'Confirm', { type: 'warning' })
+    await deleteJob(job.id); await loadJobs()
   } catch { /* cancelled */ }
 }
 

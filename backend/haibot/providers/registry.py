@@ -75,11 +75,9 @@ PROVIDER_ANTHROPIC = ProviderDefinition(
     id="anthropic",
     name="Anthropic",
     default_base_url="https://api.anthropic.com",
-    api_key_prefix="sk-ant-",
+    api_key_prefix="",
     models=ANTHROPIC_MODELS,
     model_type="anthropic",
-    # allow_custom_base_url lets power users point to an Anthropic-compatible
-    # proxy (e.g. AWS Bedrock gateway, corporate relay).
     allow_custom_base_url=True,
 )
 
@@ -102,8 +100,8 @@ PROVIDER_MINIMAX = ProviderDefinition(
 )
 
 PROVIDER_OPENAI = ProviderDefinition(
-    id="custom_openai",
-    name="Custom OpenAI",
+    id="openai",
+    name="OpenAI",
     default_base_url="",
     api_key_prefix="",
     models=[],

@@ -14,9 +14,8 @@ import json
 import os
 from pathlib import Path
 from typing import Optional
-
-_ENVS_DIR = Path(__file__).resolve().parent
-_ENVS_JSON = _ENVS_DIR / "envs.json"
+from ..constant import WORKING_DIR
+_ENVS_JSON = WORKING_DIR / "envs.json"
 
 
 def get_envs_json_path() -> Path:

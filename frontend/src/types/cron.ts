@@ -25,7 +25,7 @@ export interface JobRuntimeSpec {
 }
 
 export interface CronJobRequest {
-  input: unknown
+  input: object
   session_id?: string
   user_id?: string
 }

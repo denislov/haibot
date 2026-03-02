@@ -161,7 +161,7 @@ export function useChat() {
             const block = pushBlock({ id: uuidv4(), kind: 'text', text: '' })
             msgBlockMap.set(msgId, block)
           } else if (type === 'reasoning') {
-            const block = pushBlock({ id: uuidv4(), kind: 'reasoning', text: '', expanded: false })
+            const block = pushBlock({ id: uuidv4(), kind: 'reasoning', text: '', expanded: true })
             msgBlockMap.set(msgId, block)
           } else if (
             type === 'plugin_call' || type === 'function_call' ||
@@ -177,6 +177,11 @@ export function useChat() {
             type === 'mcp_call_output' || type === 'component_call_output'
           ) {
             outputMsgIds.add(msgId)
+          }
+        } else if (evStatus === 'completed') {
+          const block = msgBlockMap.get(msgId)
+          if (block && block.kind === 'reasoning') {
+            block.expanded = false
           }
         }
       } else if (obj === 'content') {

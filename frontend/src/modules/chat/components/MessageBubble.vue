@@ -12,10 +12,9 @@
       <div class="msg-assistant">
         <div v-for="(block, bi) in message.blocks" :key="bi" class="msg-block">
           <!-- Text -->
-          <div
+          <MarkdownBlock
             v-if="block.kind === 'text' && block.text"
-            class="md-content"
-            v-html="renderMarkdown(block.text)"
+            :text="block.text"
           />
 
           <!-- Reasoning -->
@@ -57,10 +56,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { renderMarkdown } from '@/utils/useMarkdown'
 import type { DisplayMessage } from '@/types'
 import ReasoningBlock from './ReasoningBlock.vue'
 import ToolCallBlock from './ToolCallBlock.vue'
+import MarkdownBlock from './MarkdownBlock.vue'
 
 const props = defineProps<{
   message: DisplayMessage

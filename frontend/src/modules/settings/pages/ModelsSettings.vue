@@ -61,18 +61,27 @@
           </div>
           <div class="llm-form-item">
             <label>{{ $t('settings.models.model') }}</label>
-            <el-select v-model="selectedModel" :placeholder="$t('settings.models.selectModel')" style="width: 100%">
+            <el-select
+              v-if="!selectedProvider || availableModels.length > 0"
+              v-model="selectedModel"
+              :placeholder="$t('settings.models.selectModel')"
+              style="width: 100%"
+              filterable
+              allow-create
+              default-first-option
+            >
               <el-option v-for="m in availableModels" :key="m.id" :label="m.name" :value="m.id" />
             </el-select>
-          </div>
-          <div v-if="selectedProvider === 'custom'" class="llm-form-item">
-            <label>{{ $t('settings.models.customModelId') }}</label>
-            <el-input v-model="customModelId" placeholder="gpt-4o" />
+            <el-input
+              v-else
+              v-model="selectedModel"
+              :placeholder="$t('settings.models.customModelId')"
+            />
           </div>
         </div>
 
         <div class="llm-form-footer">
-          <el-button type="primary" :loading="savingLLM" :disabled="!selectedProvider || (!selectedModel && selectedProvider !== 'custom')" @click="saveLLM">
+          <el-button type="primary" :loading="savingLLM" :disabled="!selectedProvider || !selectedModel" @click="saveLLM">
             {{ isSaved ? $t('common.saved') : $t('common.save') }}
           </el-button>
         </div>
@@ -107,7 +116,6 @@ const loadingProviders = ref(false)
 const activeModel = ref<ModelSlotConfig>({ provider_id: '', model: '' })
 const selectedProvider = ref('')
 const selectedModel = ref('')
-const customModelId = ref('')
 const savingLLM = ref(false)
 const isSaved = ref(false)
 const providerDialogVisible = ref(false)
@@ -136,10 +144,10 @@ async function loadData() {
   }
 }
 
-function onProviderChange() { selectedModel.value = ''; customModelId.value = ''; isSaved.value = false }
+function onProviderChange() { selectedModel.value = ''; isSaved.value = false }
 
 async function saveLLM() {
-  const model = selectedProvider.value === 'custom' ? customModelId.value : selectedModel.value
+  const model = selectedModel.value
   if (!model) return
   savingLLM.value = true
   try {

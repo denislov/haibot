@@ -14,13 +14,13 @@ from .models import (
     ResolvedModelConfig,
 )
 from .registry import PROVIDERS
+from ..constant import WORKING_DIR
 
 # ---------------------------------------------------------------------------
 # JSON file path
 # ---------------------------------------------------------------------------
 
-_PROVIDERS_DIR = Path(__file__).resolve().parent
-_PROVIDERS_JSON = _PROVIDERS_DIR / "providers.json"
+_PROVIDERS_JSON = WORKING_DIR / "providers.json"
 
 
 def get_providers_json_path() -> Path:

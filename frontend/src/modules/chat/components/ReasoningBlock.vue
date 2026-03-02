@@ -6,13 +6,13 @@
       <el-icon class="reasoning-chevron" :class="{ open: expanded }"><ArrowDown /></el-icon>
     </button>
     <div v-if="expanded" class="reasoning-body">
-      <div class="md-content reasoning-text" v-html="renderMarkdown(text || '')" />
+      <MarkdownBlock class="reasoning-text" :text="text || ''" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { renderMarkdown } from '@/utils/useMarkdown'
+import MarkdownBlock from './MarkdownBlock.vue'
 
 defineProps<{
   text?: string
