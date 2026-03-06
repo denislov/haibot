@@ -2,7 +2,6 @@
 import json
 import logging
 from pathlib import Path
-from typing import List, Optional
 
 from .models import GroupChatConfig
 
@@ -21,6 +20,7 @@ class GroupChatRepo:
         try:
             return json.loads(self._path.read_text(encoding="utf-8"))
         except Exception:
+            logger.error("Failed to load group chats from %s", self._path, exc_info=True)
             return {}
 
     def _dump(self, data: dict[str, dict]) -> None:
@@ -30,10 +30,10 @@ class GroupChatRepo:
             encoding="utf-8",
         )
 
-    def list(self) -> List[GroupChatConfig]:
+    def list(self) -> list[GroupChatConfig]:
         return [GroupChatConfig.model_validate(v) for v in self._load().values()]
 
-    def get(self, group_id: str) -> Optional[GroupChatConfig]:
+    def get(self, group_id: str) -> GroupChatConfig | None:
         data = self._load()
         if group_id not in data:
             return None

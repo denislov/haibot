@@ -42,3 +42,19 @@ def test_delete_missing_returns_false(tmp_path):
 def test_get_missing_returns_none(tmp_path):
     repo = GroupChatRepo(path=tmp_path / "group_chats.json")
     assert repo.get("missing") is None
+
+
+def test_defaults(tmp_path):
+    """max_rounds defaults to 10 and created_at is auto-generated."""
+    repo = GroupChatRepo(path=tmp_path / "group_chats.json")
+    cfg = GroupChatConfig(id="d1", name="D1", host_agent_id="main", participant_agent_ids=[])
+    repo.save(cfg)
+    result = repo.get("d1")
+    assert result.max_rounds == 10
+    assert result.created_at  # non-empty string
+
+
+def test_list_empty_on_fresh_repo(tmp_path):
+    """list() returns empty list when no file exists yet."""
+    repo = GroupChatRepo(path=tmp_path / "group_chats.json")
+    assert repo.list() == []
