@@ -265,14 +265,24 @@ async function saveFile() {
 }
 
 async function loadAgentSkills(agentId: string) {
-  const data = await getAgentSkills(agentId)
-  agentSkills.value = data.skills_config
+  try {
+    const data = await getAgentSkills(agentId)
+    agentSkills.value = data.skills_config
+  } catch (e: unknown) {
+    ElMessage.error('Failed to load agent skills: ' + (e instanceof Error ? e.message : String(e)))
+  }
 }
 
 async function toggleSkill(skillName: string, enabled: boolean) {
   if (!workspaceAgent.value || !agentSkills.value) return
+  const prev = agentSkills.value[skillName]
   agentSkills.value[skillName] = enabled
-  await updateAgentSkills(workspaceAgent.value.id, agentSkills.value)
+  try {
+    await updateAgentSkills(workspaceAgent.value.id, agentSkills.value)
+  } catch (e: unknown) {
+    agentSkills.value[skillName] = prev
+    ElMessage.error('Failed to update skill: ' + (e instanceof Error ? e.message : String(e)))
+  }
 }
 
 watch(workspaceAgent, (agent) => {
