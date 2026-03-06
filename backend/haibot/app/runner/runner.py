@@ -31,21 +31,34 @@ class AgentRunner(Runner):
 
         self.memory_manager: MemoryManager | None = None
         self._memory_managers: dict[str, MemoryManager] = {}
+        self._mm_locks: dict[str, asyncio.Lock] = {}
 
     async def _get_or_create_memory_manager(self, agent_id: str) -> MemoryManager:
-        """Return a started MemoryManager for the given agent_id, creating if needed."""
+        """Return a started MemoryManager for agent_id, creating if needed. Thread-safe."""
+        # Fast path (no lock): already created
         if agent_id in self._memory_managers:
             return self._memory_managers[agent_id]
 
-        workspace_dir = WORKING_DIR / "workspace" / agent_id
-        working_dir = str(workspace_dir) if workspace_dir.is_dir() else str(WORKING_DIR)
-        mm = MemoryManager(working_dir=working_dir)
-        try:
-            await mm.start()
-        except Exception as e:
-            logger.warning("MemoryManager start failed for agent %s: %s", agent_id, e)
-        self._memory_managers[agent_id] = mm
-        return mm
+        # Get or create a per-agent lock (Lock() is synchronous, GIL makes this safe)
+        if agent_id not in self._mm_locks:
+            self._mm_locks[agent_id] = asyncio.Lock()
+        lock = self._mm_locks[agent_id]
+
+        async with lock:
+            # Re-check inside lock (another coroutine may have created it while we waited)
+            if agent_id in self._memory_managers:
+                return self._memory_managers[agent_id]
+
+            workspace_dir = WORKING_DIR / "workspace" / agent_id
+            working_dir = str(workspace_dir) if workspace_dir.is_dir() else str(WORKING_DIR)
+            mm = MemoryManager(working_dir=working_dir)
+            try:
+                await mm.start()
+                self._memory_managers[agent_id] = mm  # only store on success
+            except Exception as e:
+                logger.warning("MemoryManager start failed for agent %s: %s", agent_id, e)
+                # Don't cache the broken instance — next call will retry
+            return mm
 
     def set_chat_manager(self, chat_manager):
         """Set chat manager for auto-registration.
