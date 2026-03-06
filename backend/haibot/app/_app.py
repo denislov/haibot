@@ -98,6 +98,13 @@ async def lifespan(app: FastAPI):
 
     runner.set_chat_manager(chat_manager)
 
+    # --- group chat repo init ---
+    from .group_chat.repo import GroupChatRepo
+    from ..constant import WORKING_DIR as _WORKING_DIR
+    group_chat_repo = GroupChatRepo(path=_WORKING_DIR / "group_chats.json")
+    runner.set_group_chat_repo(group_chat_repo)
+    app.state.group_chat_repo = group_chat_repo
+
     # --- config file watcher (auto-reload channels on config.json change) ---
     config_watcher = ConfigWatcher(channel_manager=channel_manager)
     await config_watcher.start()

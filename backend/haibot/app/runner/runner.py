@@ -5,6 +5,7 @@ import json
 import logging
 from pathlib import Path
 
+from agentscope.message import Msg
 from agentscope.pipeline import stream_printing_messages
 from agentscope_runtime.engine.runner import Runner
 from agentscope_runtime.engine.schemas.agent_schemas import AgentRequest
@@ -28,6 +29,8 @@ class AgentRunner(Runner):
         self.framework_type = "agentscope"
         self._chat_manager = None  # Store chat_manager reference
         self._mcp_manager = None  # MCP client manager for hot-reload
+
+        self._group_chat_repo = None
 
         self.memory_manager: MemoryManager | None = None
         self._memory_managers: dict[str, MemoryManager] = {}
@@ -75,6 +78,14 @@ class AgentRunner(Runner):
             mcp_manager: MCPClientManager instance
         """
         self._mcp_manager = mcp_manager
+
+    def set_group_chat_repo(self, repo) -> None:
+        """Set group chat repository.
+
+        Args:
+            repo: GroupChatRepo instance
+        """
+        self._group_chat_repo = repo
 
     async def query_handler(
         self,
@@ -133,6 +144,56 @@ class AgentRunner(Runner):
             mcp_clients = []
             if self._mcp_manager is not None:
                 mcp_clients = await self._mcp_manager.get_clients()
+
+            # Check for group chat
+            group_id = None
+            if hasattr(request, "metadata") and isinstance(request.metadata, dict):
+                group_id = request.metadata.get("group_id")
+
+            if group_id and self._group_chat_repo is not None:
+                config = self._group_chat_repo.get(group_id)
+                if config is None:
+                    raise ValueError(f"Group chat '{group_id}' not found")
+
+                from ..group_chat.orchestrator import GroupChatOrchestrator
+                from ...config import load_config as _load_config
+                import json as _json
+
+                # Build agent_meta: {agent_id: {name: ...}} for all involved agents
+                all_ids = [config.host_agent_id] + config.participant_agent_ids
+                agent_meta = {}
+                for aid in all_ids:
+                    workspace = WORKING_DIR / "workspace" / aid
+                    meta_file = workspace / ".agent_meta.json"
+                    if meta_file.exists():
+                        try:
+                            m = _json.loads(meta_file.read_text(encoding="utf-8"))
+                            agent_meta[aid] = m
+                        except Exception:
+                            agent_meta[aid] = {"name": aid}
+                    else:
+                        agent_meta[aid] = {"name": aid}
+
+                _cfg = _load_config()
+                language = getattr(getattr(_cfg, "agents", None), "language", "zh")
+
+                orchestrator = GroupChatOrchestrator(
+                    config=config,
+                    agent_meta=agent_meta,
+                    memory_manager_factory=self._get_or_create_memory_manager,
+                    mcp_clients=mcp_clients,
+                    env_context_factory=build_env_context,
+                    language=language,
+                )
+
+                async for event in orchestrator.run(
+                    user_msg=msgs[0] if msgs else Msg("user", "", "user"),
+                    session_id=session_id,
+                    user_id=user_id,
+                    channel=channel,
+                ):
+                    yield event, False  # group chat events: last=False until group_done
+                return
 
             config = load_config()
             max_iters = config.agents.running.max_iters
