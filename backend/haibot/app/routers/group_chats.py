@@ -2,8 +2,6 @@
 """CRUD API for group chat configurations."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from fastapi import Path as PathParam
 
@@ -32,7 +30,6 @@ async def create_group_chat(
 ):
     if repo.get(body.id) is not None:
         raise HTTPException(400, detail=f"Group chat '{body.id}' already exists")
-    body.created_at = datetime.now(timezone.utc).isoformat()
     return repo.save(body)
 
 

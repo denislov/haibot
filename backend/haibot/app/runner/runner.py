@@ -156,8 +156,6 @@ class AgentRunner(Runner):
                     raise ValueError(f"Group chat '{group_id}' not found")
 
                 from ..group_chat.orchestrator import GroupChatOrchestrator
-                from ...config import load_config as _load_config
-                import json as _json
 
                 # Build agent_meta: {agent_id: {name: ...}} for all involved agents
                 all_ids = [config.host_agent_id] + config.participant_agent_ids
@@ -167,14 +165,14 @@ class AgentRunner(Runner):
                     meta_file = workspace / ".agent_meta.json"
                     if meta_file.exists():
                         try:
-                            m = _json.loads(meta_file.read_text(encoding="utf-8"))
+                            m = json.loads(meta_file.read_text(encoding="utf-8"))
                             agent_meta[aid] = m
                         except Exception:
                             agent_meta[aid] = {"name": aid}
                     else:
                         agent_meta[aid] = {"name": aid}
 
-                _cfg = _load_config()
+                _cfg = load_config()
                 language = getattr(getattr(_cfg, "agents", None), "language", "zh")
 
                 orchestrator = GroupChatOrchestrator(
