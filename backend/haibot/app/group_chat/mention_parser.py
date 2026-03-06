@@ -46,7 +46,7 @@ def resolve_mentions(
         else:
             agent_id = name_to_id.get(name.lower())
 
-        if agent_id and agent_id not in seen:
+        if agent_id is not None and agent_id not in seen:
             result.append(agent_id)
             seen.add(agent_id)
 
