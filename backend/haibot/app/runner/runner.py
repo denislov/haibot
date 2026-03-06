@@ -30,6 +30,22 @@ class AgentRunner(Runner):
         self._mcp_manager = None  # MCP client manager for hot-reload
 
         self.memory_manager: MemoryManager | None = None
+        self._memory_managers: dict[str, MemoryManager] = {}
+
+    async def _get_or_create_memory_manager(self, agent_id: str) -> MemoryManager:
+        """Return a started MemoryManager for the given agent_id, creating if needed."""
+        if agent_id in self._memory_managers:
+            return self._memory_managers[agent_id]
+
+        workspace_dir = WORKING_DIR / "workspace" / agent_id
+        working_dir = str(workspace_dir) if workspace_dir.is_dir() else str(WORKING_DIR)
+        mm = MemoryManager(working_dir=working_dir)
+        try:
+            await mm.start()
+        except Exception as e:
+            logger.warning("MemoryManager start failed for agent %s: %s", agent_id, e)
+        self._memory_managers[agent_id] = mm
+        return mm
 
     def set_chat_manager(self, chat_manager):
         """Set chat manager for auto-registration.
@@ -109,10 +125,12 @@ class AgentRunner(Runner):
             max_iters = config.agents.running.max_iters
             max_input_length = config.agents.running.max_input_length
 
+            memory_manager = await self._get_or_create_memory_manager(agent_id)
+
             agent = HaiBotAgent(
                 env_context=env_context,
                 mcp_clients=mcp_clients,
-                memory_manager=self.memory_manager,
+                memory_manager=memory_manager,
                 max_iters=max_iters,
                 max_input_length=max_input_length,
                 agent_id=agent_id,
@@ -216,19 +234,16 @@ class AgentRunner(Runner):
         self.session = SafeJSONSession(save_dir=session_dir)
 
         try:
-            if self.memory_manager is None:
-                self.memory_manager = MemoryManager(
-                    working_dir=str(WORKING_DIR),
-                )
-            await self.memory_manager.start()
+            main_mm = await self._get_or_create_memory_manager("main")
+            self.memory_manager = main_mm  # backward compat
         except Exception as e:
             logger.exception(f"MemoryManager start failed: {e}")
 
     async def shutdown_handler(self, *args, **kwargs):
-        """
-        Shutdown handler.
-        """
-        try:
-            await self.memory_manager.close()
-        except Exception as e:
-            logger.warning(f"MemoryManager stop failed: {e}")
+        """Shutdown handler."""
+        for agent_id, mm in list(self._memory_managers.items()):
+            try:
+                await mm.close()
+            except Exception as e:
+                logger.warning("MemoryManager stop failed for %s: %s", agent_id, e)
+        self._memory_managers.clear()
