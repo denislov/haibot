@@ -441,4 +441,8 @@ async def update_agent_skills(
     meta = _read_meta(agent_dir)
     meta["skills_config"] = body.skills_config
     _write_meta(agent_dir, meta)
-    return body
+    from ...agents.skills_manager import get_agent_skills_config, list_available_skills
+    all_skills = list_available_skills()
+    updated_config = get_agent_skills_config(workspace_dir=agent_dir)
+    merged = {s: updated_config.get(s, True) for s in all_skills}
+    return AgentSkillsConfig(skills_config=merged)

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Skills management: sync skills from code to working_dir."""
 import filecmp
+import json
 import logging
 import shutil
 from pathlib import Path
@@ -897,12 +898,11 @@ def get_agent_skills_config(workspace_dir: Path) -> dict[str, bool]:
     Returns:
         Dict mapping skill name to enabled flag. Missing keys = enabled.
     """
-    import json as _json
     meta_file = workspace_dir / ".agent_meta.json"
     if not meta_file.exists():
         return {}
     try:
-        data = _json.loads(meta_file.read_text(encoding="utf-8"))
+        data = json.loads(meta_file.read_text(encoding="utf-8"))
         return dict(data.get("skills_config", {}))
     except Exception:
         return {}
