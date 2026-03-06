@@ -102,6 +102,23 @@
           :rows="20"
           class="ws-textarea"
         />
+        <!-- Skills config section -->
+        <div v-if="workspaceAgent" class="agent-skills-section">
+          <div class="section-title">{{ $t('settings.agents.skills') }}</div>
+          <div v-if="agentSkills" class="skills-list">
+            <div
+              v-for="(enabled, skillName) in agentSkills"
+              :key="skillName"
+              class="skill-row"
+            >
+              <span class="skill-name">{{ skillName }}</span>
+              <el-switch
+                :model-value="enabled"
+                @change="(val: boolean) => toggleSkill(skillName, val)"
+              />
+            </div>
+          </div>
+        </div>
       </div>
       <template #footer>
         <el-button @click="workspaceDialogVisible = false">{{ $t('common.close') }}</el-button>
@@ -112,7 +129,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Avatar, Delete, EditPen, Loading, Plus } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
@@ -123,6 +140,8 @@ import {
   listAgentFiles,
   readAgentFile,
   writeAgentFile,
+  getAgentSkills,
+  updateAgentSkills,
 } from '@/api/agents'
 import type { AgentInfo } from '@/types'
 
@@ -139,6 +158,7 @@ const creating = ref(false)
 // ── Workspace Editor ──
 const workspaceDialogVisible = ref(false)
 const workspaceAgent = ref<AgentInfo | null>(null)
+const agentSkills = ref<Record<string, boolean> | null>(null)
 const workspaceFiles = ref<Array<{ name: string; size: number }>>([])
 const activeFile = ref('')
 const fileContent = ref('')
@@ -244,6 +264,22 @@ async function saveFile() {
   }
 }
 
+async function loadAgentSkills(agentId: string) {
+  const data = await getAgentSkills(agentId)
+  agentSkills.value = data.skills_config
+}
+
+async function toggleSkill(skillName: string, enabled: boolean) {
+  if (!workspaceAgent.value || !agentSkills.value) return
+  agentSkills.value[skillName] = enabled
+  await updateAgentSkills(workspaceAgent.value.id, agentSkills.value)
+}
+
+watch(workspaceAgent, (agent) => {
+  if (agent) loadAgentSkills(agent.id)
+  else agentSkills.value = null
+})
+
 onMounted(loadData)
 </script>
 
@@ -318,6 +354,27 @@ onMounted(loadData)
   line-height: 1.6;
   background: var(--bg);
   border-radius: var(--radius);
+}
+
+/* ── Skills section ── */
+.agent-skills-section {
+  margin-top: 16px;
+}
+
+.skills-list {
+  margin-top: 8px;
+}
+
+.skill-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+}
+
+.skill-name {
+  font-size: 13px;
+  color: var(--el-text-color-regular);
 }
 
 /* ── Dark mode ── */

@@ -121,6 +121,7 @@ export default {
       workspace: '工作区',
       deleteConfirm: '确认删除智能体 "{name}"？此操作不可恢复。',
       selectAgent: '选择智能体',
+      skills: '技能配置',
     },
     channels: {
       title: '频道',

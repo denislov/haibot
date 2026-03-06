@@ -24,3 +24,12 @@ export const readAgentFile = (agentId: string, filename: string) =>
 
 export const writeAgentFile = (agentId: string, filename: string, content: string) =>
   api.put<{ written: boolean }>(`/agents/${agentId}/files/${filename}`, { content }).then((r) => r.data)
+
+export const getAgentSkills = (agentId: string) =>
+  api.get<{ skills_config: Record<string, boolean> }>(`/agents/${agentId}/skills`)
+    .then(r => r.data)
+
+export const updateAgentSkills = (agentId: string, skillsConfig: Record<string, boolean>) =>
+  api.put<{ skills_config: Record<string, boolean> }>(`/agents/${agentId}/skills`, {
+    skills_config: skillsConfig,
+  }).then(r => r.data)
