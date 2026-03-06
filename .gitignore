@@ -13,3 +13,4 @@ backend/haibot/envs/envs.json
 logs/
 CoPaw/
 .env
+.worktrees/
