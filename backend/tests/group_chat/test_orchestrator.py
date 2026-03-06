@@ -1,0 +1,67 @@
+# backend/tests/group_chat/test_orchestrator.py
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+from agentscope.message import Msg
+from haibot.app.group_chat.models import GroupChatConfig
+from haibot.app.group_chat.orchestrator import GroupChatOrchestrator, tag_event
+
+
+def test_tag_event_adds_agent_fields():
+    event = {"object": "message", "type": "message"}
+    tagged = tag_event(event, agent_id="analyst", agent_name="分析师")
+    assert tagged["agent_id"] == "analyst"
+    assert tagged["agent_name"] == "分析师"
+    assert tagged["object"] == "message"  # original fields preserved
+
+
+def test_tag_event_does_not_mutate_original():
+    original = {"object": "content"}
+    tagged = tag_event(original, agent_id="x", agent_name="X")
+    assert "agent_id" not in original
+
+
+async def test_orchestrator_single_round_no_mentions(tmp_path):
+    """Host replies without @mention → single round, no participants run."""
+    config = GroupChatConfig(
+        id="test_group",
+        name="Test",
+        host_agent_id="main",
+        participant_agent_ids=["analyst"],
+        max_rounds=5,
+    )
+
+    host_reply = Msg("main", "这个问题我来回答，无需讨论。", "assistant")
+
+    async def fake_stream_agent(agent, msgs, agent_id, agent_name):
+        yield {"object": "message", "type": "message", "status": "in_progress",
+               "id": "m1", "agent_id": agent_id, "agent_name": agent_name}
+        yield {"object": "group_final_msg", "msg": host_reply, "agent_id": agent_id}
+
+    with patch(
+        "haibot.app.group_chat.orchestrator.stream_agent",
+        side_effect=fake_stream_agent,
+    ):
+        orchestrator = GroupChatOrchestrator(
+            config=config,
+            agent_meta={"main": {"name": "Main"}, "analyst": {"name": "分析师"}},
+            memory_manager_factory=AsyncMock(return_value=None),
+            mcp_clients=[],
+            env_context_factory=MagicMock(return_value=""),
+            language="zh",
+        )
+
+        user_msg = Msg("user", "今天天气怎么样？", "user")
+        events = []
+        async for event in orchestrator.run(
+            user_msg=user_msg,
+            session_id="sess1",
+            user_id="u1",
+            channel="console",
+        ):
+            events.append(event)
+
+    # Should have ended with group_done after one round (no @mentions)
+    objects = [e.get("object") for e in events]
+    assert "group_event" in objects
+    done_events = [e for e in events if e.get("type") == "group_done"]
+    assert len(done_events) == 1
