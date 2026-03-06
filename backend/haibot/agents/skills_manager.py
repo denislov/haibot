@@ -883,3 +883,43 @@ class SkillService:
                 e,
             )
             return None
+
+
+def get_agent_skills_config(workspace_dir: Path) -> dict[str, bool]:
+    """Read skills_config from agent workspace .agent_meta.json.
+
+    Returns empty dict if file absent or has no skills_config key
+    (meaning all skills are enabled by default).
+
+    Args:
+        workspace_dir: Path to the agent's workspace directory.
+
+    Returns:
+        Dict mapping skill name to enabled flag. Missing keys = enabled.
+    """
+    import json as _json
+    meta_file = workspace_dir / ".agent_meta.json"
+    if not meta_file.exists():
+        return {}
+    try:
+        data = _json.loads(meta_file.read_text(encoding="utf-8"))
+        return dict(data.get("skills_config", {}))
+    except Exception:
+        return {}
+
+
+def filter_skills_by_config(
+    skill_names: list[str],
+    skills_config: dict[str, bool],
+) -> list[str]:
+    """Return skill_names with disabled skills removed.
+
+    Args:
+        skill_names: Full list of available skill names.
+        skills_config: Per-agent flag dict (True = enabled, False = disabled).
+                       Absent keys default to True (enabled).
+
+    Returns:
+        Filtered list preserving original order.
+    """
+    return [s for s in skill_names if skills_config.get(s, True)]

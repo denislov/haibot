@@ -22,6 +22,8 @@ from .model_factory import create_model_and_formatter
 from .prompt import build_system_prompt_for_agent
 from .skills_manager import (
     ensure_skills_initialized,
+    filter_skills_by_config,
+    get_agent_skills_config,
     get_working_skills_dir,
     list_available_skills,
 )
@@ -196,6 +198,10 @@ class HaiBotAgent(ReActAgent):
 
         working_skills_dir = get_working_skills_dir()
         available_skills = list_available_skills()
+
+        # Apply per-agent skills filter from workspace .agent_meta.json
+        skills_config = get_agent_skills_config(self._workspace_dir)
+        available_skills = filter_skills_by_config(available_skills, skills_config)
 
         for skill_name in available_skills:
             skill_dir = working_skills_dir / skill_name

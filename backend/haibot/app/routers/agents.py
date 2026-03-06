@@ -393,3 +393,52 @@ async def write_agent_file(
     content = body.get("content", "")
     file_path.write_text(content, encoding="utf-8")
     return {"written": True}
+
+
+# ---------------------------------------------------------------------------
+# Skills config endpoints
+# ---------------------------------------------------------------------------
+
+
+class AgentSkillsConfig(BaseModel):
+    """Per-agent skills enable/disable flags."""
+    skills_config: dict[str, bool] = Field(default_factory=dict)
+
+
+@router.get(
+    "/{agent_id}/skills",
+    response_model=AgentSkillsConfig,
+    summary="Get per-agent skills config",
+)
+async def get_agent_skills(
+    agent_id: str = PathParam(...),
+) -> AgentSkillsConfig:
+    """Return skills_config for a specific agent, merged with full skill list."""
+    from ...agents.skills_manager import get_agent_skills_config, list_available_skills
+    agent_dir = _get_agent_dir(agent_id)
+    if not agent_dir.is_dir():
+        raise HTTPException(404, detail=f"Agent '{agent_id}' not found")
+    skills_config = get_agent_skills_config(workspace_dir=agent_dir)
+    all_skills = list_available_skills()
+    # Merge: show all skills with their current enabled state (default True)
+    merged = {s: skills_config.get(s, True) for s in all_skills}
+    return AgentSkillsConfig(skills_config=merged)
+
+
+@router.put(
+    "/{agent_id}/skills",
+    response_model=AgentSkillsConfig,
+    summary="Update per-agent skills config",
+)
+async def update_agent_skills(
+    agent_id: str = PathParam(...),
+    body: AgentSkillsConfig = Body(...),
+) -> AgentSkillsConfig:
+    """Update skills_config in agent .agent_meta.json."""
+    agent_dir = _get_agent_dir(agent_id)
+    if not agent_dir.is_dir():
+        raise HTTPException(404, detail=f"Agent '{agent_id}' not found")
+    meta = _read_meta(agent_dir)
+    meta["skills_config"] = body.skills_config
+    _write_meta(agent_dir, meta)
+    return body
