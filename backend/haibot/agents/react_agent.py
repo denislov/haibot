@@ -81,6 +81,7 @@ class HaiBotAgent(ReActAgent):
         max_iters: int = 50,
         max_input_length: int = 128 * 1024,  # 128K = 131072 tokens
         agent_id: str = "main",
+        workspace_dir: Optional[Path] = None,
     ):
         """Initialize HaiBotAgent.
 
@@ -97,11 +98,21 @@ class HaiBotAgent(ReActAgent):
                 context window (default: 128K = 131072)
             agent_id: Agent identifier for workspace resolution
                 (default: "main")
+            workspace_dir: Optional explicit workspace directory for
+                tool isolation; if None, falls back to
+                WORKING_DIR/workspace/agent_id or WORKING_DIR
         """
         self._env_context = env_context
         self._agent_id = agent_id
         self._max_input_length = max_input_length
         self._mcp_clients = mcp_clients or []
+
+        # Resolve workspace_dir: explicit > workspace/agent_id > WORKING_DIR
+        if workspace_dir is not None:
+            self._workspace_dir = workspace_dir
+        else:
+            candidate = WORKING_DIR / "workspace" / agent_id
+            self._workspace_dir = candidate if candidate.is_dir() else WORKING_DIR
 
         # Memory compaction threshold: configurable ratio of max_input_length
         self._memory_compact_threshold = int(
@@ -157,10 +168,7 @@ class HaiBotAgent(ReActAgent):
         """
         toolkit = Toolkit()
 
-        # Calculate agent-specific workspace dir
-        workspace_dir = WORKING_DIR / "workspace" / self._agent_id
-        if not workspace_dir.is_dir():
-            workspace_dir = WORKING_DIR
+        workspace_dir = self._workspace_dir  # use pre-computed value
 
         # Register built-in tools
         toolkit.register_tool_function(execute_shell_command, preset_kwargs={"working_dir": workspace_dir})
