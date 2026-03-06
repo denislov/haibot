@@ -11,12 +11,13 @@ from agentscope.tool import ToolResponse
 from ...constant import WORKING_DIR
 
 
-def _resolve_file_path(file_path: str) -> str:
+def _resolve_file_path(file_path: str, working_dir: Path = None) -> str:
     """Resolve file path: use absolute path as-is,
-    resolve relative path from WORKING_DIR.
+    resolve relative path from working_dir.
 
     Args:
         file_path: The input file path (absolute or relative).
+        working_dir: Base directory for relative paths. Defaults to WORKING_DIR.
 
     Returns:
         The resolved absolute file path as string.
@@ -24,14 +25,15 @@ def _resolve_file_path(file_path: str) -> str:
     path = Path(file_path)
     if path.is_absolute():
         return str(path)
-    else:
-        return str(WORKING_DIR / file_path)
+    base = working_dir if working_dir is not None else WORKING_DIR
+    return str(base / file_path)
 
 
 async def read_file(  # pylint: disable=too-many-return-statements
     file_path: str,
     start_line: Optional[int] = None,
     end_line: Optional[int] = None,
+    working_dir: Optional[Path] = None,
 ) -> ToolResponse:
     """Read a file. Relative paths resolve from WORKING_DIR.
 
@@ -47,7 +49,7 @@ async def read_file(  # pylint: disable=too-many-return-statements
             Last line to read (1-based, inclusive).
     """
 
-    file_path = _resolve_file_path(file_path)
+    file_path = _resolve_file_path(file_path, working_dir)
 
     if not os.path.exists(file_path):
         return ToolResponse(
@@ -142,6 +144,7 @@ async def read_file(  # pylint: disable=too-many-return-statements
 async def write_file(
     file_path: str,
     content: str,
+    working_dir: Optional[Path] = None,
 ) -> ToolResponse:
     """Create or overwrite a file. Relative paths resolve from WORKING_DIR.
 
@@ -162,7 +165,7 @@ async def write_file(
             ],
         )
 
-    file_path = _resolve_file_path(file_path)
+    file_path = _resolve_file_path(file_path, working_dir)
 
     try:
         with open(file_path, "w", encoding="utf-8") as file:
@@ -190,6 +193,7 @@ async def edit_file(
     file_path: str,
     old_text: str,
     new_text: str,
+    working_dir: Optional[Path] = None,
 ) -> ToolResponse:
     """Find-and-replace text in a file. All occurrences of old_text are
     replaced with new_text. Relative paths resolve from WORKING_DIR.
@@ -203,7 +207,7 @@ async def edit_file(
             Replacement text.
     """
 
-    response = await read_file(file_path=file_path)
+    response = await read_file(file_path=file_path, working_dir=working_dir)
     if response.content and len(response.content) > 0:
         error_text = response.content[0].get("text", "")
         if error_text.startswith("Error:"):
@@ -230,7 +234,10 @@ async def edit_file(
         )
 
     new_content = content.replace(old_text, new_text)
-    write_response = await write_file(file_path=file_path, content=new_content)
+    write_response = await write_file(
+        file_path=file_path, content=new_content,
+        working_dir=working_dir,
+    )
 
     if write_response.content and len(write_response.content) > 0:
         write_text = write_response.content[0].get("text", "")
@@ -250,6 +257,7 @@ async def edit_file(
 async def append_file(
     file_path: str,
     content: str,
+    working_dir: Optional[Path] = None,
 ) -> ToolResponse:
     """Append content to the end of a file. Relative paths resolve from
     WORKING_DIR.
@@ -271,7 +279,7 @@ async def append_file(
             ],
         )
 
-    file_path = _resolve_file_path(file_path)
+    file_path = _resolve_file_path(file_path, working_dir)
 
     try:
         with open(file_path, "a", encoding="utf-8") as file:

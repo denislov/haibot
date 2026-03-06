@@ -11,7 +11,6 @@ to the terminal.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import sys
@@ -20,10 +19,15 @@ from typing import Any, Dict, List, Optional
 
 from agentscope_runtime.engine.schemas.agent_schemas import RunStatus
 
-from ...config.config import ConsoleConfig as ConsoleChannelConfig
-from ..console_push_store import append as push_store_append
-from .schema import Incoming
-from .base import BaseChannel, OnReplySent, OutgoingContentPart, ProcessHandler
+from ....config.config import ConsoleConfig as ConsoleChannelConfig
+from ...console_push_store import append as push_store_append
+from ..base import (
+    BaseChannel,
+    ContentType,
+    OnReplySent,
+    OutgoingContentPart,
+    ProcessHandler,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -62,9 +66,6 @@ class ConsoleChannel(BaseChannel):
         self.enabled = enabled
         self.bot_prefix = bot_prefix
 
-        self._queue: Optional[asyncio.Queue[Incoming]] = None
-        self._consumer_task: Optional[asyncio.Task[None]] = None
-
     # ── factory methods ─────────────────────────────────────────────
 
     @classmethod
@@ -95,69 +96,113 @@ class ConsoleChannel(BaseChannel):
             on_reply_sent=on_reply_sent,
         )
 
-    # ── consume loop ────────────────────────────────────────────────
+    def build_agent_request_from_native(self, native_payload: Any) -> Any:
+        """
+        Build AgentRequest from console native payload (dict with
+        channel_id, sender_id, content_parts, meta). content_parts are
+        runtime Content types.
+        """
+        payload = native_payload if isinstance(native_payload, dict) else {}
+        channel_id = payload.get("channel_id") or self.channel
+        sender_id = payload.get("sender_id") or ""
+        content_parts = payload.get("content_parts") or []
+        meta = payload.get("meta") or {}
+        session_id = self.resolve_session_id(sender_id, meta)
+        request = self.build_agent_request_from_user_content(
+            channel_id=channel_id,
+            sender_id=sender_id,
+            session_id=session_id,
+            content_parts=content_parts,
+            channel_meta=meta,
+        )
+        request.channel_meta = meta
+        return request
 
-    async def _consume_loop(self) -> None:
-        """Process messages from the queue."""
-        assert self._queue is not None
-        while True:
-            msg = await self._queue.get()
-            try:
-                request = self.to_agent_request(msg)
-                last_response = None
-                event_count = 0
-                _ = {
-                    **(msg.meta or {}),
-                    "bot_prefix": self.bot_prefix,
-                }
+    async def consume_one(self, payload: Any) -> None:
+        """Process one payload (AgentRequest or native dict) from queue."""
+        if isinstance(payload, dict) and "content_parts" in payload:
+            session_id = self.resolve_session_id(
+                payload.get("sender_id") or "",
+                payload.get("meta"),
+            )
+            content_parts = payload.get("content_parts") or []
+            should_process, merged = self._apply_no_text_debounce(
+                session_id,
+                content_parts,
+            )
+            if not should_process:
+                return
+            payload = {**payload, "content_parts": merged}
+            request = self.build_agent_request_from_native(payload)
+        else:
+            request = payload
+            if getattr(request, "input", None):
+                session_id = getattr(request, "session_id", "") or ""
+                contents = list(
+                    getattr(request.input[0], "content", None) or [],
+                )
+                should_process, merged = self._apply_no_text_debounce(
+                    session_id,
+                    contents,
+                )
+                if not should_process:
+                    return
+                if merged and hasattr(request.input[0], "content"):
+                    request.input[0].content = merged
+        try:
+            send_meta = getattr(request, "channel_meta", None) or {}
+            send_meta.setdefault("bot_prefix", self.bot_prefix)
+            last_response = None
+            event_count = 0
 
-                async for event in self._process(request):
-                    event_count += 1
-                    obj = getattr(event, "object", None)
-                    status = getattr(event, "status", None)
-                    ev_type = getattr(event, "type", None)
+            async for event in self._process(request):
+                event_count += 1
+                obj = getattr(event, "object", None)
+                status = getattr(event, "status", None)
+                ev_type = getattr(event, "type", None)
 
-                    logger.debug(
-                        "console event #%s: object=%s status=%s type=%s",
-                        event_count,
-                        obj,
-                        status,
-                        ev_type,
-                    )
-
-                    if obj == "message" and status == RunStatus.Completed:
-                        parts = self._message_to_content_parts(event)
-                        self._print_parts(parts, ev_type)
-
-                    elif obj == "response":
-                        last_response = event
-
-                logger.info(
-                    "console stream done: event_count=%s has_response=%s",
+                logger.debug(
+                    "console event #%s: object=%s status=%s type=%s",
                     event_count,
-                    last_response is not None,
+                    obj,
+                    status,
+                    ev_type,
                 )
 
-                if last_response and getattr(last_response, "error", None):
-                    err = getattr(
-                        last_response.error,
-                        "message",
-                        str(last_response.error),
-                    )
-                    self._print_error(err)
+                if obj == "message" and status == RunStatus.Completed:
+                    parts = self._message_to_content_parts(event)
+                    self._print_parts(parts, ev_type)
 
-                if self._on_reply_sent:
-                    self._on_reply_sent(
-                        self.channel,
-                        request.user_id or msg.sender,
-                        request.session_id or f"{self.channel}:{msg.sender}",
-                    )
+                elif obj == "response":
+                    last_response = event
 
-            except Exception:
-                logger.exception("console process/reply failed")
-                self._print_error(
-                    "An error occurred while processing your request.",
+            logger.info(
+                "console stream done: event_count=%s has_response=%s",
+                event_count,
+                last_response is not None,
+            )
+
+            if last_response and getattr(last_response, "error", None):
+                err = getattr(
+                    last_response.error,
+                    "message",
+                    str(last_response.error),
                 )
+                self._print_error(err)
+
+            to_handle = request.user_id or ""
+            if self._on_reply_sent:
+                self._on_reply_sent(
+                    self.channel,
+                    to_handle,
+                    request.session_id or f"{self.channel}:{to_handle}",
+                )
+
+        except Exception:
+            logger.exception("console process/reply failed")
+            self._print_error(
+                "An error occurred while processing your request.",
+            )
 
     # ── pretty-print helpers ────────────────────────────────────────
 
@@ -173,22 +218,24 @@ class ConsoleChannel(BaseChannel):
             f"\n{_GREEN}{_BOLD}🤖 [{ts}] Bot{label}{_RESET}",
         )
         for p in parts:
-            t = p.get("type")
-            if t == "text" and p.get("text"):
-                print(f"{self.bot_prefix}{p['text']}")
-            elif t == "refusal" and p.get("refusal"):
-                print(f"{_RED}⚠ Refusal: {p['refusal']}{_RESET}")
-            elif t == "image" and p.get("image_url"):
-                print(f"{_YELLOW}🖼  [Image: {p['image_url']}]{_RESET}")
-            elif t == "video" and p.get("video_url"):
-                print(f"{_YELLOW}🎬 [Video: {p['video_url']}]{_RESET}")
-            elif t == "audio" and p.get("data"):
+            t = getattr(p, "type", None)
+            if t == ContentType.TEXT and getattr(p, "text", None):
+                print(f"{self.bot_prefix}{p.text}")
+            elif t == ContentType.REFUSAL and getattr(p, "refusal", None):
+                print(f"{_RED}⚠ Refusal: {p.refusal}{_RESET}")
+            elif t == ContentType.IMAGE and getattr(p, "image_url", None):
+                print(f"{_YELLOW}🖼  [Image: {p.image_url}]{_RESET}")
+            elif t == ContentType.VIDEO and getattr(p, "video_url", None):
+                print(f"{_YELLOW}🎬 [Video: {p.video_url}]{_RESET}")
+            elif t == ContentType.AUDIO and getattr(p, "data", None):
                 print(f"{_YELLOW}🔊 [Audio]{_RESET}")
-            elif t == "file":
-                url = p.get("file_url") or p.get("file_id") or ""
+            elif t == ContentType.FILE:
+                url = (
+                    getattr(p, "file_url", None)
+                    or getattr(p, "file_id", None)
+                    or ""
+                )
                 print(f"{_YELLOW}📎 [File: {url}]{_RESET}")
-            elif t == "data":
-                print(f"{_YELLOW}📊 [Data]{_RESET}")
         print()
 
     def _print_error(self, err: str) -> None:
@@ -208,11 +255,11 @@ class ConsoleChannel(BaseChannel):
         """
         text_parts: List[str] = []
         for p in parts:
-            t = p.get("type")
-            if t == "text" and p.get("text"):
-                text_parts.append(p["text"])
-            elif t == "refusal" and p.get("refusal"):
-                text_parts.append(p["refusal"])
+            t = getattr(p, "type", None)
+            if t == ContentType.TEXT and getattr(p, "text", None):
+                text_parts.append(p.text or "")
+            elif t == ContentType.REFUSAL and getattr(p, "refusal", None):
+                text_parts.append(p.refusal or "")
         body = "\n".join(text_parts) if text_parts else ""
         prefix = (meta or {}).get("bot_prefix", self.bot_prefix) or ""
         if prefix and body:
@@ -260,29 +307,11 @@ class ConsoleChannel(BaseChannel):
 
     async def start(self) -> None:
         if not self.enabled:
-            logger.info("console channel disabled")
+            logger.debug("console channel disabled")
             return
-
-        self._queue = asyncio.Queue(maxsize=1000)
-        self._consumer_task = asyncio.create_task(
-            self._consume_loop(),
-            name="console_channel_consumer",
-        )
-
-        logger.info("console channel started")
-        print(
-            f"\n{_GREEN}{_BOLD}✅ Console channel started{_RESET}\n",
-        )
+        logger.info("Console channel started")
 
     async def stop(self) -> None:
         if not self.enabled:
             return
-        if self._consumer_task:
-            self._consumer_task.cancel()
-            try:
-                await self._consumer_task
-            except asyncio.CancelledError:
-                pass
-            except Exception:
-                pass
         logger.info("console channel stopped")

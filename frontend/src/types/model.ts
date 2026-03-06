@@ -9,8 +9,10 @@ export interface ProviderInfo {
   name: string
   api_key_prefix: string
   models: ModelInfo[]
-  allow_custom_base_url: boolean
-  model_type: 'openai' | 'anthropic'
+  extra_models: ModelInfo[]
+  is_custom: boolean
+  is_local: boolean
+  needs_base_url?: boolean
   has_api_key: boolean
   current_api_key: string
   current_base_url: string

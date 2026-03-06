@@ -20,12 +20,20 @@ from typing import Any, Dict, List, Optional
 
 import aiohttp
 
-from agentscope_runtime.engine.schemas.agent_schemas import RunStatus
+from agentscope_runtime.engine.schemas.agent_schemas import (
+    RunStatus,
+    TextContent,
+    ContentType,
+)
 
-from ...config.config import QQConfig as QQChannelConfig
+from ....config.config import QQConfig as QQChannelConfig
 
-from .schema import Incoming
-from .base import BaseChannel, OnReplySent, OutgoingContentPart, ProcessHandler
+from ..base import (
+    BaseChannel,
+    OnReplySent,
+    OutgoingContentPart,
+    ProcessHandler,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -56,55 +64,8 @@ TOKEN_URL = "https://bots.qq.com/app/getAppAccessToken"
 
 
 def _get_api_base() -> str:
-    """API 根地址，可通过 QQ_API_BASE 覆盖（如沙箱: https://sandbox.api.sgroup.qq.com）。"""
+    """API root address (e.g. sandbox: https://sandbox.api.sgroup.qq.com)"""
     return os.getenv("QQ_API_BASE", DEFAULT_API_BASE).rstrip("/")
-
-
-_token_cache: Optional[Dict[str, Any]] = None
-_token_lock = threading.Lock()
-
-
-def _get_access_token_sync(app_id: str, client_secret: str) -> str:
-    """Sync get access_token for use in WebSocket thread.
-    Cached with 5min margin.
-    """
-    global _token_cache
-    with _token_lock:
-        if _token_cache and time.time() < _token_cache["expires_at"] - 300:
-            return _token_cache["token"]
-    try:
-        import urllib.request
-
-        req = urllib.request.Request(
-            TOKEN_URL,
-            data=json.dumps(
-                {"appId": app_id, "clientSecret": client_secret},
-            ).encode(),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode())
-    except Exception as e:
-        raise RuntimeError(f"Failed to get access_token: {e}") from e
-    token = data.get("access_token")
-    if not token:
-        raise RuntimeError(f"No access_token in response: {data}")
-    expires_in = data.get("expires_in", 7200)
-    if isinstance(expires_in, str):
-        expires_in = int(expires_in)
-    with _token_lock:
-        _token_cache = {
-            "token": token,
-            "expires_at": time.time() + expires_in,
-        }
-    return token
-
-
-def clear_token_cache() -> None:
-    global _token_cache
-    with _token_lock:
-        _token_cache = None
 
 
 def _get_channel_url_sync(access_token: str) -> str:
@@ -180,62 +141,31 @@ def _get_next_msg_seq(msg_id: str) -> int:
         return n
 
 
-async def _get_access_token_async(app_id: str, client_secret: str) -> str:
-    """Async get token for send_content_parts. Uses aiohttp."""
-    global _token_cache
-    with _token_lock:
-        if _token_cache and time.time() < _token_cache["expires_at"] - 300:
-            return _token_cache["token"]
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            TOKEN_URL,
-            json={"appId": app_id, "clientSecret": client_secret},
-            headers={"Content-Type": "application/json"},
-        ) as resp:
-            if resp.status >= 400:
-                text = await resp.text()
-                raise RuntimeError(
-                    f"Token request failed {resp.status}: {text}",
-                )
-            data = await resp.json()
-    token = data.get("access_token")
-    if not token:
-        raise RuntimeError(f"No access_token: {data}")
-    expires_in = data.get("expires_in", 7200)
-    if isinstance(expires_in, str):
-        expires_in = int(expires_in)
-    with _token_lock:
-        _token_cache = {
-            "token": token,
-            "expires_at": time.time() + expires_in,
-        }
-    return token
-
-
 async def _api_request_async(
+    session: Any,
     access_token: str,
     method: str,
     path: str,
     body: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     url = f"{_get_api_base()}{path}"
-    async with aiohttp.ClientSession() as session:
-        kwargs = {
-            "headers": {
-                "Authorization": f"QQBot {access_token}",
-                "Content-Type": "application/json",
-            },
-        }
-        if body is not None:
-            kwargs["json"] = body
-        async with session.request(method, url, **kwargs) as resp:
-            data = await resp.json()
-            if resp.status >= 400:
-                raise RuntimeError(f"API {path} {resp.status}: {data}")
-            return data
+    kwargs = {
+        "headers": {
+            "Authorization": f"QQBot {access_token}",
+            "Content-Type": "application/json",
+        },
+    }
+    if body is not None:
+        kwargs["json"] = body
+    async with session.request(method, url, **kwargs) as resp:
+        data = await resp.json()
+        if resp.status >= 400:
+            raise RuntimeError(f"API {path} {resp.status}: {data}")
+        return data
 
 
 async def _send_c2c_message_async(
+    session: Any,
     access_token: str,
     openid: str,
     content: str,
@@ -246,6 +176,7 @@ async def _send_c2c_message_async(
     if msg_id:
         body["msg_id"] = msg_id
     await _api_request_async(
+        session,
         access_token,
         "POST",
         f"/v2/users/{openid}/messages",
@@ -254,6 +185,7 @@ async def _send_c2c_message_async(
 
 
 async def _send_channel_message_async(
+    session: Any,
     access_token: str,
     channel_id: str,
     content: str,
@@ -263,6 +195,7 @@ async def _send_channel_message_async(
     if msg_id:
         body["msg_id"] = msg_id
     await _api_request_async(
+        session,
         access_token,
         "POST",
         f"/channels/{channel_id}/messages",
@@ -271,6 +204,7 @@ async def _send_channel_message_async(
 
 
 async def _send_group_message_async(
+    session: Any,
     access_token: str,
     group_openid: str,
     content: str,
@@ -281,6 +215,7 @@ async def _send_group_message_async(
     if msg_id:
         body["msg_id"] = msg_id
     await _api_request_async(
+        session,
         access_token,
         "POST",
         f"/v2/groups/{group_openid}/messages",
@@ -316,11 +251,85 @@ class QQChannel(BaseChannel):
         self.bot_prefix = bot_prefix
 
         self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._queue: Optional[asyncio.Queue[Incoming]] = None
-        self._consumer_task: Optional[asyncio.Task[None]] = None
         self._ws_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
         self._account_id = "default"
+        self._token_cache: Optional[Dict[str, Any]] = None
+        self._token_lock = threading.Lock()
+
+        self._http: Optional[aiohttp.ClientSession] = None
+
+    def _get_access_token_sync(self) -> str:
+        """Sync get access_token for WebSocket thread. Instance-level cache."""
+        with self._token_lock:
+            if (
+                self._token_cache
+                and time.time() < self._token_cache["expires_at"] - 300
+            ):
+                return self._token_cache["token"]
+        try:
+            import urllib.request
+
+            req = urllib.request.Request(
+                TOKEN_URL,
+                data=json.dumps(
+                    {"appId": self.app_id, "clientSecret": self.client_secret},
+                ).encode(),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode())
+        except Exception as e:
+            raise RuntimeError(f"Failed to get access_token: {e}") from e
+        token = data.get("access_token")
+        if not token:
+            raise RuntimeError(f"No access_token in response: {data}")
+        expires_in = data.get("expires_in", 7200)
+        if isinstance(expires_in, str):
+            expires_in = int(expires_in)
+        with self._token_lock:
+            self._token_cache = {
+                "token": token,
+                "expires_at": time.time() + expires_in,
+            }
+        return token
+
+    async def _get_access_token_async(self) -> str:
+        """Async get token for send. Instance-level cache."""
+        with self._token_lock:
+            if (
+                self._token_cache
+                and time.time() < self._token_cache["expires_at"] - 300
+            ):
+                return self._token_cache["token"]
+        async with self._http.post(
+            TOKEN_URL,
+            json={"appId": self.app_id, "clientSecret": self.client_secret},
+            headers={"Content-Type": "application/json"},
+        ) as resp:
+            if resp.status >= 400:
+                text = await resp.text()
+                raise RuntimeError(
+                    f"Token request failed {resp.status}: {text}",
+                )
+            data = await resp.json()
+        token = data.get("access_token")
+        if not token:
+            raise RuntimeError(f"No access_token: {data}")
+        expires_in = data.get("expires_in", 7200)
+        if isinstance(expires_in, str):
+            expires_in = int(expires_in)
+        with self._token_lock:
+            self._token_cache = {
+                "token": token,
+                "expires_at": time.time() + expires_in,
+            }
+        return token
+
+    def _clear_token_cache(self) -> None:
+        with self._token_lock:
+            self._token_cache = None
 
     @classmethod
     def from_env(
@@ -382,16 +391,14 @@ class QQChannel(BaseChannel):
             else:
                 message_type = "c2c"
         try:
-            token = await _get_access_token_async(
-                self.app_id,
-                self.client_secret,
-            )
+            token = await self._get_access_token_async()
         except Exception:
             logger.exception("get access_token failed")
             return
         try:
             if message_type == "c2c":
                 await _send_c2c_message_async(
+                    self._http,
                     token,
                     sender_id,
                     text.strip(),
@@ -399,6 +406,7 @@ class QQChannel(BaseChannel):
                 )
             elif message_type == "group" and group_openid:
                 await _send_group_message_async(
+                    self._http,
                     token,
                     group_openid,
                     text.strip(),
@@ -406,6 +414,7 @@ class QQChannel(BaseChannel):
                 )
             elif channel_id:
                 await _send_channel_message_async(
+                    self._http,
                     token,
                     channel_id,
                     text.strip(),
@@ -413,6 +422,7 @@ class QQChannel(BaseChannel):
                 )
             else:
                 await _send_c2c_message_async(
+                    self._http,
                     token,
                     sender_id,
                     text.strip(),
@@ -421,93 +431,128 @@ class QQChannel(BaseChannel):
         except Exception:
             logger.exception("send failed")
 
-    async def _consume_loop(self) -> None:
-        assert self._queue is not None
-        while True:
-            msg = await self._queue.get()
-            try:
-                request = self.to_agent_request(msg)
-                last_response = None
-                accumulated_parts: List[OutgoingContentPart] = []
-                event_count = 0
-                send_meta = {**(msg.meta or {}), "bot_prefix": self.bot_prefix}
+    def build_agent_request_from_native(self, native_payload: Any) -> Any:
+        """Build AgentRequest from QQ native dict (runtime content_parts)."""
+        payload = native_payload if isinstance(native_payload, dict) else {}
+        channel_id = payload.get("channel_id") or self.channel
+        sender_id = payload.get("sender_id") or ""
+        content_parts = payload.get("content_parts") or []
+        meta = payload.get("meta") or {}
+        session_id = self.resolve_session_id(sender_id, meta)
+        return self.build_agent_request_from_user_content(
+            channel_id=channel_id,
+            sender_id=sender_id,
+            session_id=session_id,
+            content_parts=content_parts,
+            channel_meta=meta,
+        )
 
-                async for event in self._process(request):
-                    event_count += 1
-                    obj = getattr(event, "object", None)
-                    status = getattr(event, "status", None)
-                    ev_type = getattr(event, "type", None)
-                    logger.debug(
-                        "qq event #%s: object=%s status=%s type=%s",
-                        event_count,
-                        obj,
-                        status,
+    async def consume_one(self, payload: Any) -> None:
+        """Process one AgentRequest from manager queue."""
+        request = payload
+        if getattr(request, "input", None):
+            session_id = getattr(request, "session_id", "") or ""
+            contents = list(
+                getattr(request.input[0], "content", None) or [],
+            )
+            should_process, merged = self._apply_no_text_debounce(
+                session_id,
+                contents,
+            )
+            if not should_process:
+                return
+            if merged:
+                if hasattr(request.input[0], "model_copy"):
+                    request.input[0] = request.input[0].model_copy(
+                        update={"content": merged},
+                    )
+                else:
+                    request.input[0].content = merged
+        try:
+            send_meta = getattr(request, "channel_meta", None) or {}
+            send_meta.setdefault("bot_prefix", self.bot_prefix)
+            to_handle = request.user_id or ""
+            last_response = None
+            accumulated_parts: List[OutgoingContentPart] = []
+            event_count = 0
+
+            async for event in self._process(request):
+                event_count += 1
+                obj = getattr(event, "object", None)
+                status = getattr(event, "status", None)
+                ev_type = getattr(event, "type", None)
+                logger.debug(
+                    "qq event #%s: object=%s status=%s type=%s",
+                    event_count,
+                    obj,
+                    status,
+                    ev_type,
+                )
+                if obj == "message" and status == RunStatus.Completed:
+                    parts = self._message_to_content_parts(event)
+                    logger.info(
+                        "qq completed message: type=%s parts_count=%s",
                         ev_type,
+                        len(parts),
                     )
-                    if obj == "message" and status == RunStatus.Completed:
-                        parts = self._message_to_content_parts(event)
-                        logger.info(
-                            "qq completed message: type=%s parts_count=%s",
-                            ev_type,
-                            len(parts),
-                        )
-                        accumulated_parts.extend(parts)
-                    elif obj == "response":
-                        last_response = event
+                    accumulated_parts.extend(parts)
+                elif obj == "response":
+                    last_response = event
 
-                if last_response and getattr(last_response, "error", None):
-                    err = getattr(
-                        last_response.error,
-                        "message",
-                        str(last_response.error),
-                    )
-                    err_text = self.bot_prefix + f"Error: {err}"
-                    await self.send_content_parts(
-                        msg.sender,
-                        [{"type": "text", "text": err_text}],
-                        send_meta,
-                    )
-                elif accumulated_parts:
-                    await self.send_content_parts(
-                        msg.sender,
-                        accumulated_parts,
-                        send_meta,
-                    )
-                elif last_response is None:
-                    await self.send_content_parts(
-                        msg.sender,
-                        [
-                            {
-                                "type": "text",
-                                "text": self.bot_prefix
-                                + "An error occurred while processing your "
-                                "request.",
-                            },
-                        ],
-                        send_meta,
-                    )
-                if self._on_reply_sent:
-                    self._on_reply_sent(
-                        self.channel,
-                        request.user_id or msg.sender,
-                        request.session_id or f"{self.channel}:{msg.sender}",
-                    )
+            if last_response and getattr(last_response, "error", None):
+                err = getattr(
+                    last_response.error,
+                    "message",
+                    str(last_response.error),
+                )
+                err_text = self.bot_prefix + f"Error: {err}"
+                await self.send_content_parts(
+                    to_handle,
+                    [{"type": "text", "text": err_text}],
+                    send_meta,
+                )
+            elif accumulated_parts:
+                await self.send_content_parts(
+                    to_handle,
+                    accumulated_parts,
+                    send_meta,
+                )
+            elif last_response is None:
+                await self.send_content_parts(
+                    to_handle,
+                    [
+                        {
+                            "type": "text",
+                            "text": self.bot_prefix
+                            + "An error occurred while processing your "
+                            "request.",
+                        },
+                    ],
+                    send_meta,
+                )
+            if self._on_reply_sent:
+                self._on_reply_sent(
+                    self.channel,
+                    to_handle,
+                    request.session_id or f"{self.channel}:{to_handle}",
+                )
+        except Exception:
+            logger.exception("qq process/reply failed")
+            try:
+                fallback_handle = getattr(request, "user_id", "")
+                await self.send_content_parts(
+                    fallback_handle,
+                    [
+                        {
+                            "type": "text",
+                            "text": "An error occurred while processing "
+                            "your request.",
+                        },
+                    ],
+                    getattr(request, "channel_meta", None) or {},
+                )
             except Exception:
-                logger.exception("qq process/reply failed")
-                try:
-                    await self.send_content_parts(
-                        msg.sender,
-                        [
-                            {
-                                "type": "text",
-                                "text": "An error occurred while processing "
-                                "your request.",
-                            },
-                        ],
-                        msg.meta or {},
-                    )
-                except Exception:
-                    logger.exception("send error message failed")
+                logger.exception("send error message failed")
 
     def _run_ws_forever(self) -> None:
         try:
@@ -530,10 +575,10 @@ class QQChannel(BaseChannel):
             if self._stop_event.is_set():
                 return False
             if should_refresh_token:
-                clear_token_cache()
+                self._clear_token_cache()
                 should_refresh_token = False
             try:
-                token = _get_access_token_sync(self.app_id, self.client_secret)
+                token = self._get_access_token_sync()
                 url = _get_channel_url_sync(token)
             except Exception as e:
                 logger.warning("qq get token/gateway failed: %s", e)
@@ -662,23 +707,30 @@ class QQChannel(BaseChannel):
                             msg_id = (d or {}).get("id", "")
                             # ts = (d or {}).get("timestamp", "")
                             att = (d or {}).get("attachments") or []
-                            incoming = Incoming(
-                                channel="qq",
-                                sender=sender,
-                                text=text,
-                                meta={
-                                    "message_type": "c2c",
-                                    "message_id": msg_id,
-                                    "sender_id": sender,
-                                    "incoming_raw": d,
-                                    "attachments": att,
-                                },
+                            meta = {
+                                "message_type": "c2c",
+                                "message_id": msg_id,
+                                "sender_id": sender,
+                                "incoming_raw": d,
+                                "attachments": att,
+                            }
+                            native = {
+                                "channel_id": "qq",
+                                "sender_id": sender,
+                                "content_parts": [
+                                    TextContent(
+                                        type=ContentType.TEXT,
+                                        text=text,
+                                    ),
+                                ],
+                                "meta": meta,
+                            }
+                            request = self.build_agent_request_from_native(
+                                native,
                             )
-                            if self._loop and self._queue:
-                                self._loop.call_soon_threadsafe(
-                                    self._queue.put_nowait,
-                                    incoming,
-                                )
+                            request.channel_meta = meta
+                            if self._enqueue is not None:
+                                self._enqueue(request)
                             logger.info(
                                 "qq recv c2c from=%s text=%r",
                                 sender,
@@ -705,25 +757,32 @@ class QQChannel(BaseChannel):
                             msg_id = (d or {}).get("id", "")
                             # ts = (d or {}).get("timestamp", "")
                             att = (d or {}).get("attachments") or []
-                            incoming = Incoming(
-                                channel="qq",
-                                sender=sender,
-                                text=text,
-                                meta={
-                                    "message_type": "guild",
-                                    "message_id": msg_id,
-                                    "sender_id": sender,
-                                    "channel_id": channel_id,
-                                    "guild_id": guild_id,
-                                    "incoming_raw": d,
-                                    "attachments": att,
-                                },
+                            meta = {
+                                "message_type": "guild",
+                                "message_id": msg_id,
+                                "sender_id": sender,
+                                "channel_id": channel_id,
+                                "guild_id": guild_id,
+                                "incoming_raw": d,
+                                "attachments": att,
+                            }
+                            native = {
+                                "channel_id": "qq",
+                                "sender_id": sender,
+                                "content_parts": [
+                                    TextContent(
+                                        type=ContentType.TEXT,
+                                        text=text,
+                                    ),
+                                ],
+                                "meta": meta,
+                            }
+                            request = self.build_agent_request_from_native(
+                                native,
                             )
-                            if self._loop and self._queue:
-                                self._loop.call_soon_threadsafe(
-                                    self._queue.put_nowait,
-                                    incoming,
-                                )
+                            request.channel_meta = meta
+                            if self._enqueue is not None:
+                                self._enqueue(request)
                             logger.info(
                                 "qq recv guild from=%s channel=%s text=%r",
                                 sender,
@@ -750,25 +809,32 @@ class QQChannel(BaseChannel):
                             guild_id = (d or {}).get("guild_id", "")
                             msg_id = (d or {}).get("id", "")
                             att = (d or {}).get("attachments") or []
-                            incoming = Incoming(
-                                channel="qq",
-                                sender=sender,
-                                text=text,
-                                meta={
-                                    "message_type": "dm",
-                                    "message_id": msg_id,
-                                    "sender_id": sender,
-                                    "channel_id": channel_id,
-                                    "guild_id": guild_id,
-                                    "incoming_raw": d,
-                                    "attachments": att,
-                                },
+                            meta = {
+                                "message_type": "dm",
+                                "message_id": msg_id,
+                                "sender_id": sender,
+                                "channel_id": channel_id,
+                                "guild_id": guild_id,
+                                "incoming_raw": d,
+                                "attachments": att,
+                            }
+                            native = {
+                                "channel_id": "qq",
+                                "sender_id": sender,
+                                "content_parts": [
+                                    TextContent(
+                                        type=ContentType.TEXT,
+                                        text=text,
+                                    ),
+                                ],
+                                "meta": meta,
+                            }
+                            request = self.build_agent_request_from_native(
+                                native,
                             )
-                            if self._loop and self._queue:
-                                self._loop.call_soon_threadsafe(
-                                    self._queue.put_nowait,
-                                    incoming,
-                                )
+                            request.channel_meta = meta
+                            if self._enqueue is not None:
+                                self._enqueue(request)
                             logger.info(
                                 "qq recv dm from=%s text=%r",
                                 sender,
@@ -793,24 +859,31 @@ class QQChannel(BaseChannel):
                             group_openid = (d or {}).get("group_openid", "")
                             msg_id = (d or {}).get("id", "")
                             att = (d or {}).get("attachments") or []
-                            incoming = Incoming(
-                                channel="qq",
-                                sender=sender,
-                                text=text,
-                                meta={
-                                    "message_type": "group",
-                                    "message_id": msg_id,
-                                    "sender_id": sender,
-                                    "group_openid": group_openid,
-                                    "incoming_raw": d,
-                                    "attachments": att,
-                                },
+                            meta = {
+                                "message_type": "group",
+                                "message_id": msg_id,
+                                "sender_id": sender,
+                                "group_openid": group_openid,
+                                "incoming_raw": d,
+                                "attachments": att,
+                            }
+                            native = {
+                                "channel_id": "qq",
+                                "sender_id": sender,
+                                "content_parts": [
+                                    TextContent(
+                                        type=ContentType.TEXT,
+                                        text=text,
+                                    ),
+                                ],
+                                "meta": meta,
+                            }
+                            request = self.build_agent_request_from_native(
+                                native,
                             )
-                            if self._loop and self._queue:
-                                self._loop.call_soon_threadsafe(
-                                    self._queue.put_nowait,
-                                    incoming,
-                                )
+                            request.channel_meta = meta
+                            if self._enqueue is not None:
+                                self._enqueue(request)
                             logger.info(
                                 "qq recv group from=%s group=%s text=%r",
                                 sender,
@@ -889,7 +962,7 @@ class QQChannel(BaseChannel):
 
     async def start(self) -> None:
         if not self.enabled:
-            logger.info("qq channel disabled by QQ_CHANNEL_ENABLED=0")
+            logger.debug("qq channel disabled by QQ_CHANNEL_ENABLED=0")
             return
         if not self.app_id or not self.client_secret:
             raise RuntimeError(
@@ -897,17 +970,14 @@ class QQChannel(BaseChannel):
                 "channel is enabled.",
             )
         self._loop = asyncio.get_running_loop()
-        self._queue = asyncio.Queue(maxsize=1000)
-        self._consumer_task = asyncio.create_task(
-            self._consume_loop(),
-            name="qq_channel_consumer",
-        )
         self._stop_event.clear()
         self._ws_thread = threading.Thread(
             target=self._run_ws_forever,
             daemon=True,
         )
         self._ws_thread.start()
+        if self._http is None:
+            self._http = aiohttp.ClientSession()
 
     async def stop(self) -> None:
         if not self.enabled:
@@ -915,11 +985,6 @@ class QQChannel(BaseChannel):
         self._stop_event.set()
         if self._ws_thread:
             self._ws_thread.join(timeout=8)
-        if self._consumer_task:
-            self._consumer_task.cancel()
-            try:
-                await self._consumer_task
-            except asyncio.CancelledError:
-                pass
-            except Exception:
-                pass
+        if self._http is not None:
+            await self._http.close()
+            self._http = None

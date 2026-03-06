@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=redefined-outer-name,unused-argument
+import mimetypes
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -16,12 +17,13 @@ from ..config import (  # pylint: disable=no-name-in-module
     update_last_dispatch,
     ConfigWatcher,
 )
-from ..config.utils import get_jobs_path, get_chats_path
+from ..config.utils import get_jobs_path, get_chats_path, get_config_path
 from ..constant import DOCS_ENABLED, LOG_LEVEL_ENV
 from ..__version__ import __version__
 from ..utils.logging import setup_logger
 from .channels import ChannelManager  # pylint: disable=no-name-in-module
 from .channels.utils import make_process_from_runner
+from .mcp import MCPClientManager, MCPConfigWatcher
 from .runner.repo.json_repo import JsonChatRepository
 from .crons.repo.json_repo import JsonJobRepository
 from .crons.manager import CronManager
@@ -31,6 +33,14 @@ from ..envs import load_envs_into_environ
 
 # Apply log level on load so reload child process gets same level as CLI.
 logger = setup_logger(os.environ.get(LOG_LEVEL_ENV, "info"))
+
+# Ensure static assets are served with browser-compatible MIME types across
+# platforms (notably Windows may miss .js/.mjs mappings).
+mimetypes.init()
+mimetypes.add_type("application/javascript", ".js")
+mimetypes.add_type("application/javascript", ".mjs")
+mimetypes.add_type("text/css", ".css")
+mimetypes.add_type("application/wasm", ".wasm")
 
 # Load persisted env vars into os.environ at module import time
 # so they are available before the lifespan starts.
@@ -51,8 +61,18 @@ subapi = agent_app.get_fastapi_app()
 async def lifespan(app: FastAPI):
     await runner.start()
 
-    # --- channel connector init/start (from config.json) ---
     config = load_config()
+    # --- MCP client manager init (independent module, hot-reloadable) ---
+    mcp_manager = MCPClientManager()
+    if hasattr(config, "mcp"):
+        try:
+            await mcp_manager.init_from_config(config.mcp)
+            runner.set_mcp_manager(mcp_manager)
+            logger.debug("MCP client manager initialized")
+        except Exception:
+            logger.exception("Failed to initialize MCP manager")
+    
+    # --- channel connector init/start (from config.json) ---
     channel_manager = ChannelManager.from_config(
         process=make_process_from_runner(runner),
         config=config,
@@ -81,6 +101,20 @@ async def lifespan(app: FastAPI):
     # --- config file watcher (auto-reload channels on config.json change) ---
     config_watcher = ConfigWatcher(channel_manager=channel_manager)
     await config_watcher.start()
+    
+    # --- MCP config watcher (auto-reload MCP clients on change) ---
+    mcp_watcher = None
+    if hasattr(config, "mcp"):
+        try:
+            mcp_watcher = MCPConfigWatcher(
+                mcp_manager=mcp_manager,
+                config_loader=load_config,
+                config_path=get_config_path(),
+            )
+            await mcp_watcher.start()
+            logger.debug("MCP config watcher started")
+        except Exception:
+            logger.exception("Failed to start MCP watcher")
 
     # expose to endpoints
     app.state.runner = runner
@@ -88,19 +122,31 @@ async def lifespan(app: FastAPI):
     app.state.cron_manager = cron_manager
     app.state.chat_manager = chat_manager
     app.state.config_watcher = config_watcher
+    app.state.mcp_manager = mcp_manager
+    app.state.mcp_watcher = mcp_watcher
 
     try:
         yield
     finally:
-        # stop order: watcher -> cron -> channels -> runner
+        # stop order: watchers -> cron -> channels -> mcp -> runner
         try:
             await config_watcher.stop()
         except Exception:
             pass
+        if mcp_watcher:
+            try:
+                await mcp_watcher.stop()
+            except Exception:
+                pass
         try:
             await cron_manager.stop()
         finally:
             await channel_manager.stop_all()
+            if mcp_manager:
+                try:
+                    await mcp_manager.close_all()
+                except Exception:
+                    pass
             await runner.stop()
 
 
@@ -155,15 +201,15 @@ def read_root():
     return {"message": "Hello World"}
 
 
-@app.get("/version")
+@app.get("/api/version")
 def get_version():
     """Return the current HaiBot version."""
     return {"version": __version__}
 
 
-app.include_router(api_router)
+app.include_router(api_router, prefix="/api")
 
-app.include_router(subapi.router, prefix="/agent", tags=["agent"])
+app.include_router(subapi.router, prefix="/api/agent", tags=["agent"])
 
 # Mount console: root static files (logo.png etc.) then assets, then SPA
 # fallback.

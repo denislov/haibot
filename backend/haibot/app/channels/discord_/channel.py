@@ -5,21 +5,28 @@ from __future__ import annotations
 import os
 import logging
 import asyncio
-from typing import Optional
+from typing import Any, Optional
 
 import aiohttp
-from agentscope_runtime.engine.schemas.agent_schemas import RunStatus
+from agentscope_runtime.engine.schemas.agent_schemas import (
+    TextContent,
+    ImageContent,
+    VideoContent,
+    AudioContent,
+    FileContent,
+    ContentType,
+)
 
-from ...config.config import DiscordConfig as DiscordChannelConfig
+from ....config.config import DiscordConfig as DiscordChannelConfig
 
-from .schema import Incoming, IncomingContentItem
-from .base import BaseChannel, OnReplySent, ProcessHandler
+from ..base import BaseChannel, OnReplySent, ProcessHandler
 
 logger = logging.getLogger(__name__)
 
 
 class DiscordChannel(BaseChannel):
     channel = "discord"
+    uses_manager_queue = True
 
     def __init__(
         self,
@@ -72,10 +79,12 @@ class DiscordChannel(BaseChannel):
                 text = (message.content or "").strip()
                 attachments = message.attachments
 
-                # Build content
-                content = []
+                # Build runtime content parts
+                content_parts = []
                 if text:
-                    content.append(IncomingContentItem(type="text", text=text))
+                    content_parts.append(
+                        TextContent(type=ContentType.TEXT, text=text),
+                    )
                 if attachments:
                     for att in attachments:
                         file_name = (att.filename or "").lower()
@@ -107,98 +116,55 @@ class DiscordChannel(BaseChannel):
                         )
 
                         if is_image:
-                            item_type = "image"
+                            content_parts.append(
+                                ImageContent(
+                                    type=ContentType.IMAGE,
+                                    image_url=url,
+                                ),
+                            )
                         elif is_video:
-                            item_type = "video"
+                            content_parts.append(
+                                VideoContent(
+                                    type=ContentType.VIDEO,
+                                    video_url=url,
+                                ),
+                            )
                         elif is_audio:
-                            item_type = "audio"
+                            content_parts.append(
+                                AudioContent(
+                                    type=ContentType.AUDIO,
+                                    data=url,
+                                ),
+                            )
                         else:
-                            item_type = "file"
-
-                        content.append(
-                            IncomingContentItem(
-                                type=item_type,
-                                url=url,
-                            ),
-                        )
-
-                msg = Incoming(
-                    channel="discord",
-                    sender=str(message.author),
-                    text=text,
-                    content=content,
-                    meta={
-                        "user_id": str(message.author.id),
-                        "channel_id": str(message.channel.id),
-                        "guild_id": str(message.guild.id)
-                        if message.guild
-                        else None,
-                        "message_id": str(message.id),
-                        "is_dm": message.guild is None,
-                    },
-                )
-
-                try:
-                    request = self.to_agent_request(msg)
-                    last_response = None
-                    send_meta = {
-                        **(msg.meta or {}),
-                        "bot_prefix": self.bot_prefix,
-                    }
-                    event_count = 0
-                    async for event in self._process(request):
-                        event_count += 1
-                        obj = getattr(event, "object", None)
-                        status = getattr(event, "status", None)
-                        ev_type = getattr(event, "type", None)
-                        logger.debug(
-                            "discord event #%s: object=%s status=%s type=%s",
-                            event_count,
-                            obj,
-                            status,
-                            ev_type,
-                        )
-                        if obj == "message" and status == RunStatus.Completed:
-                            logger.info(
-                                "discord sending completed message: type=%s "
-                                "to=%s",
-                                ev_type,
-                                msg.sender,
+                            content_parts.append(
+                                FileContent(
+                                    type=ContentType.FILE,
+                                    file_url=url,
+                                ),
                             )
-                            await self.send_message_content(
-                                msg.sender,
-                                event,
-                                send_meta,
-                            )
-                        elif obj == "response":
-                            last_response = event
-                    logger.info(
-                        "discord stream done: event_count=%s "
-                        "has_response=%s has_error=%s",
-                        event_count,
-                        last_response is not None,
-                        getattr(last_response, "error", None) is not None
-                        if last_response
-                        else False,
+
+                meta = {
+                    "user_id": str(message.author.id),
+                    "channel_id": str(message.channel.id),
+                    "guild_id": str(message.guild.id)
+                    if message.guild
+                    else None,
+                    "message_id": str(message.id),
+                    "is_dm": message.guild is None,
+                }
+                native = {
+                    "channel_id": self.channel,
+                    "sender_id": str(message.author),
+                    "content_parts": content_parts,
+                    "meta": meta,
+                }
+                if self._enqueue is not None:
+                    self._enqueue(native)
+                else:
+                    logger.warning(
+                        "discord: _enqueue not set, message dropped",
                     )
-                    if last_response and getattr(last_response, "error", None):
-                        err = getattr(
-                            last_response.error,
-                            "message",
-                            str(last_response.error),
-                        )
-                        await message.channel.send(
-                            self.bot_prefix + f"Error: {err}",
-                        )
-                    if self._on_reply_sent:
-                        self._on_reply_sent(
-                            self.channel,
-                            request.user_id or msg.sender,
-                            request.session_id
-                            or f"{self.channel}:{msg.sender}",
-                        )
-                except Exception:
-                    logger.exception("process/send failed")
 
     @classmethod
     def from_env(
@@ -264,7 +230,7 @@ class DiscordChannel(BaseChannel):
 
         meta = meta or {}
 
-        if not meta.get("channel_id") or not meta.get("user_id"):
+        if not meta.get("channel_id") and not meta.get("user_id"):
             meta.update(self._route_from_handle(to_handle))
 
         channel_id = meta.get("channel_id")
@@ -316,26 +282,47 @@ class DiscordChannel(BaseChannel):
         if self._client:
             await self._client.close()
 
-    def to_agent_request(self, incoming: Incoming):
-        req = super().to_agent_request(incoming)
-
-        meta = incoming.meta or {}
+    def resolve_session_id(
+        self,
+        sender_id: str,
+        channel_meta: Optional[dict] = None,
+    ) -> str:
+        """Session by channel (guild) or DM user id."""
+        meta = channel_meta or {}
         is_dm = bool(meta.get("is_dm"))
         channel_id = meta.get("channel_id")
-        user_id = meta.get("user_id")
-        discord_user_id = incoming.sender
-
-        req.user_id = str(discord_user_id)
-
+        user_id = meta.get("user_id") or sender_id
         if is_dm:
-            req.session_id = f"discord:dm:{user_id}"
-        else:
-            if channel_id:
-                req.session_id = f"discord:ch:{channel_id}"
-            else:
-                req.session_id = f"discord:dm:{user_id}"  # fallback
+            return f"discord:dm:{user_id}"
+        if channel_id:
+            return f"discord:ch:{channel_id}"
+        return f"discord:dm:{user_id}"
 
-        return req
+    def get_to_handle_from_request(self, request: Any) -> str:
+        """Discord send target is session_id (discord:ch:xxx or dm:xxx)."""
+        sid = getattr(request, "session_id", "")
+        uid = getattr(request, "user_id", "")
+        return sid or uid or ""
+
+    def build_agent_request_from_native(self, native_payload) -> Any:
+        """Build AgentRequest from Discord dict (content_parts + meta)."""
+        payload = native_payload if isinstance(native_payload, dict) else {}
+        channel_id = payload.get("channel_id") or self.channel
+        sender_id = payload.get("sender_id") or ""
+        content_parts = payload.get("content_parts") or []
+        meta = payload.get("meta") or {}
+        user_id = str(meta.get("user_id") or sender_id)
+        session_id = self.resolve_session_id(user_id, meta)
+        request = self.build_agent_request_from_user_content(
+            channel_id=channel_id,
+            sender_id=sender_id,
+            session_id=session_id,
+            content_parts=content_parts,
+            channel_meta=meta,
+        )
+        request.user_id = user_id
+        request.channel_meta = meta
+        return request
 
     def to_handle_from_target(self, *, user_id: str, session_id: str) -> str:
         return session_id

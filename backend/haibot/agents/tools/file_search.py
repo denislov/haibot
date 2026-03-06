@@ -85,6 +85,7 @@ async def grep_search(  # pylint: disable=too-many-branches
     is_regex: bool = False,
     case_sensitive: bool = True,
     context_lines: int = 0,
+    working_dir: Optional[Path] = None,
 ) -> ToolResponse:
     """Search file contents by pattern, recursively. Relative paths resolve
     from WORKING_DIR. Output format: ``path:line_number: content``.
@@ -112,7 +113,8 @@ async def grep_search(  # pylint: disable=too-many-branches
             ],
         )
 
-    search_root = Path(_resolve_file_path(path)) if path else WORKING_DIR
+    default_root = working_dir if working_dir is not None else WORKING_DIR
+    search_root = Path(_resolve_file_path(path, working_dir)) if path else default_root
 
     if not search_root.exists():
         return ToolResponse(
@@ -216,6 +218,7 @@ async def grep_search(  # pylint: disable=too-many-branches
 async def glob_search(
     pattern: str,
     path: Optional[str] = None,
+    working_dir: Optional[Path] = None,
 ) -> ToolResponse:
     """Find files matching a glob pattern (e.g. ``"*.py"``, ``"**/*.json"``).
     Relative paths resolve from WORKING_DIR.
@@ -236,7 +239,8 @@ async def glob_search(
             ],
         )
 
-    search_root = Path(_resolve_file_path(path)) if path else WORKING_DIR
+    default_root = working_dir if working_dir is not None else WORKING_DIR
+    search_root = Path(_resolve_file_path(path, working_dir)) if path else default_root
 
     if not search_root.exists():
         return ToolResponse(

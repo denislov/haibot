@@ -1,21 +1,22 @@
 # -*- coding: utf-8 -*-
-# pylint: disable=unused-argument
+# pylint: disable=unused-argument too-many-branches too-many-statements
+import asyncio
 import json
 import logging
-import os
 from pathlib import Path
 
-from agentscope.mcp import StdIOStatefulClient
 from agentscope.pipeline import stream_printing_messages
 from agentscope_runtime.engine.runner import Runner
 from agentscope_runtime.engine.schemas.agent_schemas import AgentRequest
 from dotenv import load_dotenv
 
+from .query_error_dump import write_query_error_dump
 from .session import SafeJSONSession
 from .utils import build_env_context
 from ..channels.schema import DEFAULT_CHANNEL
 from ...agents.memory import MemoryManager
 from ...agents.react_agent import HaiBotAgent
+from ...config import load_config
 from ...constant import WORKING_DIR
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,7 @@ class AgentRunner(Runner):
         super().__init__()
         self.framework_type = "agentscope"
         self._chat_manager = None  # Store chat_manager reference
-        self._tavily_search_client = None
+        self._mcp_manager = None  # MCP client manager for hot-reload
 
         self.memory_manager: MemoryManager | None = None
 
@@ -38,6 +39,14 @@ class AgentRunner(Runner):
         """
         self._chat_manager = chat_manager
 
+    def set_mcp_manager(self, mcp_manager):
+        """Set MCP client manager for hot-reload support.
+
+        Args:
+            mcp_manager: MCPClientManager instance
+        """
+        self._mcp_manager = mcp_manager
+
     async def query_handler(
         self,
         msgs,
@@ -47,43 +56,74 @@ class AgentRunner(Runner):
         """
         Handle agent query.
         """
-        session_id = request.session_id
-        user_id = request.user_id
-        channel = getattr(request, "channel", DEFAULT_CHANNEL)
 
-        logger.info(
-            "Handle agent query:\n%s",
-            json.dumps(
-                {
-                    "session_id": session_id,
-                    "user_id": user_id,
-                    "channel": channel,
-                    "msgs_len": len(msgs) if msgs else 0,
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-        )
-
-        env_context = build_env_context(
-            session_id=session_id,
-            user_id=user_id,
-            channel=channel,
-            working_dir=str(WORKING_DIR),
-        )
-        mcp_clients = []
-        if self._tavily_search_client is not None:
-            mcp_clients.append(self._tavily_search_client)
-
-        agent = HaiBotAgent(
-            env_context=env_context,
-            mcp_clients=mcp_clients,
-            memory_manager=self.memory_manager,
-        )
-        await agent.register_mcp_clients()
-        agent.set_console_output_enabled(enabled=False)
+        agent = None
+        chat = None
 
         try:
+            # Resolve agent_id from request metadata (default: "main")
+            agent_id = "main"
+            if hasattr(request, "metadata") and isinstance(
+                request.metadata, dict
+            ):
+                agent_id = request.metadata.get("agent_id", "main")
+            
+            session_id = request.session_id
+            user_id = request.user_id
+            channel = getattr(request, "channel", DEFAULT_CHANNEL)
+
+            logger.info(
+                "Handle agent query:\n%s",
+                json.dumps(
+                    {
+                        "agent_id": agent_id,
+                        "session_id": session_id,
+                        "user_id": user_id,
+                        "channel": channel,
+                        "msgs_len": len(msgs) if msgs else 0,
+                        "msgs_str": str(msgs)[:300] + "...",
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+            )
+
+            workspace_dir = WORKING_DIR / "workspace" / agent_id
+
+            if not workspace_dir.is_dir():
+                workspace_dir = WORKING_DIR
+
+            env_context = build_env_context(
+                session_id=session_id,
+                user_id=user_id,
+                channel=channel,
+                working_dir=str(workspace_dir),
+            )
+
+            # Get MCP clients from manager (hot-reloadable)
+            mcp_clients = []
+            if self._mcp_manager is not None:
+                mcp_clients = await self._mcp_manager.get_clients()
+
+            config = load_config()
+            max_iters = config.agents.running.max_iters
+            max_input_length = config.agents.running.max_input_length
+
+            agent = HaiBotAgent(
+                env_context=env_context,
+                mcp_clients=mcp_clients,
+                memory_manager=self.memory_manager,
+                max_iters=max_iters,
+                max_input_length=max_input_length,
+                agent_id=agent_id,
+            )
+            # logger.info(
+            #     "agent prompt:\n%s",
+            #     agent.sys_prompt
+            # )
+            await agent.register_mcp_clients()
+            agent.set_console_output_enabled(enabled=False)
+
             logger.debug(
                 f"Agent Query msgs {msgs}",
             )
@@ -94,7 +134,7 @@ class AgentRunner(Runner):
                 if content:
                     name = msgs[0].get_text_content()[:10]
                 else:
-                    name = "多媒体消息"
+                    name = "Media Message"
 
             if self._chat_manager is not None:
                 chat = await self._chat_manager.get_or_create_chat(
@@ -121,17 +161,41 @@ class AgentRunner(Runner):
             ):
                 yield msg, last
 
-            await self.session.save_session_state(
-                session_id=session_id,
-                user_id=user_id,
-                agent=agent,
-            )
-
-            if self._chat_manager is not None:
-                await self._chat_manager.update_chat(chat)
-        except Exception as e:
-            logger.exception("Error in query handler: %s", e)
+        except asyncio.CancelledError:
+            if agent is not None:
+                await agent.interrupt()
             raise
+        except Exception as e:
+            debug_dump_path = write_query_error_dump(
+                request=request,
+                exc=e,
+                locals_=locals(),
+            )
+            path_hint = (
+                f"\n(Details:  {debug_dump_path})" if debug_dump_path else ""
+            )
+            logger.exception(f"Error in query handler: {e}{path_hint}")
+            if debug_dump_path:
+                setattr(e, "debug_dump_path", debug_dump_path)
+                if hasattr(e, "add_note"):
+                    e.add_note(
+                        f"(Details:  {debug_dump_path})",
+                    )
+                suffix = f"\n(Details:  {debug_dump_path})"
+                e.args = (
+                    (f"{e.args[0]}{suffix}" if e.args else suffix.strip()),
+                ) + e.args[1:]
+            raise
+        finally:
+            if agent is not None:
+                await self.session.save_session_state(
+                    session_id=session_id,
+                    user_id=user_id,
+                    agent=agent,
+                )
+
+            if self._chat_manager is not None and chat is not None:
+                await self._chat_manager.update_chat(chat)
 
     async def init_handler(self, *args, **kwargs):
         """
@@ -151,18 +215,6 @@ class AgentRunner(Runner):
         session_dir = str(WORKING_DIR / "sessions")
         self.session = SafeJSONSession(save_dir=session_dir)
 
-        tavily_search_client = StdIOStatefulClient(
-            name="tavily_mcp",
-            command="npx",
-            args=["-y", "tavily-mcp@latest"],
-            env={"TAVILY_API_KEY": os.getenv("TAVILY_API_KEY", "")},
-        )
-        try:
-            await tavily_search_client.connect()
-            self._tavily_search_client = tavily_search_client
-        except Exception as e:
-            logger.debug(f"tavily-mcp connect failed: {e}")
-
         try:
             if self.memory_manager is None:
                 self.memory_manager = MemoryManager(
@@ -176,16 +228,6 @@ class AgentRunner(Runner):
         """
         Shutdown handler.
         """
-
-        for client in (self._tavily_search_client,):
-            if client is None:
-                continue
-            try:
-                await client.close()
-            except Exception as e:
-                logger.error(f"Error closing MCP client: {e}")
-        self._tavily_search_client = None
-
         try:
             await self.memory_manager.close()
         except Exception as e:

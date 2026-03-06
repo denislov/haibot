@@ -121,6 +121,7 @@ export function useChat() {
     scrollToBottom: () => void,
     onDone?: () => void,
     onError?: (e: Error) => void,
+    agentId?: string,
   ) {
     if (!text.trim() || streaming.value) return
 
@@ -249,6 +250,7 @@ export function useChat() {
         }
       },
       abortController.signal,
+      agentId,
     )
   }
 

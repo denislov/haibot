@@ -28,8 +28,9 @@ export async function streamQuery(
   onDone: () => void,
   onError: (e: Error) => void,
   signal?: AbortSignal,
+  agentId?: string,
 ) {
-  const body = {
+  const body: Record<string, unknown> = {
     input: [
       {
         role: 'user',
@@ -41,9 +42,12 @@ export async function streamQuery(
     user_id: userId,
     stream: true,
   }
+  if (agentId) {
+    body.metadata = { agent_id: agentId }
+  }
 
   try {
-    const response = await fetch('/agent/process', {
+    const response = await fetch('/api/agent/process', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

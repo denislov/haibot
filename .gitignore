@@ -11,3 +11,5 @@ wheels/
 backend/haibot/providers/providers.json
 backend/haibot/envs/envs.json
 logs/
+CoPaw/
+.env

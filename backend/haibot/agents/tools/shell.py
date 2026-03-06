@@ -39,6 +39,7 @@ async def execute_shell_command(
     command: str,
     timeout: int = 60,
     cwd: Optional[Path] = None,
+    working_dir: Optional[Path] = None,
 ) -> ToolResponse:
     """Execute given command and return the return code, standard output and
     error within <returncode></returncode>, <stdout></stdout> and
@@ -70,7 +71,8 @@ async def execute_shell_command(
         )
 
     # Set working directory
-    working_dir = cwd if cwd is not None else WORKING_DIR
+    default_wd = working_dir if working_dir is not None else WORKING_DIR
+    working_dir = cwd if cwd is not None else default_wd
 
     try:
         proc = await asyncio.create_subprocess_shell(

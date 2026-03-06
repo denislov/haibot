@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Skills management: sync skills from code to working_dir."""
+import filecmp
 import logging
 import shutil
 from pathlib import Path
@@ -166,7 +167,7 @@ def sync_skills_to_working_dir(
         }
 
     if not skills_to_sync:
-        logger.info("No skills to sync.")
+        logger.debug("No skills to sync.")
         return 0, 0
 
     synced_count = 0
@@ -203,6 +204,110 @@ def sync_skills_to_working_dir(
     return synced_count, skipped_count
 
 
+def _is_directory_same(dir1: Path, dir2: Path) -> bool:
+    """
+    Check if two directories have the same content.
+
+    Args:
+        dir1: First directory path.
+        dir2: Second directory path.
+
+    Returns:
+        True if directories have the same structure and file contents.
+    """
+    if not dir1.exists() or not dir2.exists():
+        return False
+
+    dcmp = filecmp.dircmp(dir1, dir2)
+
+    if dcmp.left_only or dcmp.right_only or dcmp.funny_files:
+        return False
+
+    if dcmp.diff_files:
+        return False
+
+    for sub_dcmp in dcmp.subdirs.values():
+        if not _compare_dircmp(sub_dcmp):
+            return False
+
+    return True
+
+
+def _compare_dircmp(dcmp: "filecmp.dircmp") -> bool:
+    """Helper to recursively compare dircmp objects."""
+    if (
+        dcmp.left_only
+        or dcmp.right_only
+        or dcmp.funny_files
+        or dcmp.diff_files
+    ):
+        return False
+    for sub_dcmp in dcmp.subdirs.values():
+        if not _compare_dircmp(sub_dcmp):
+            return False
+    return True
+
+
+def sync_skills_from_active_to_customized(
+    skill_names: list[str] | None = None,
+) -> tuple[int, int]:
+    """
+    Sync skills from active_skills to customized_skills directory.
+
+    Args:
+        skill_names: List of skill names to sync. If None, sync all skills.
+
+    Returns:
+        Tuple of (synced_count, skipped_count).
+    """
+    active_skills = get_active_skills_dir()
+    customized_skills = get_customized_skills_dir()
+    builtin_skills = get_builtin_skills_dir()
+
+    customized_skills.mkdir(parents=True, exist_ok=True)
+
+    active_skills_dict = _collect_skills_from_dir(active_skills)
+    if not active_skills_dict:
+        logger.debug("No skills found in active_skills.")
+        return 0, 0
+
+    builtin_skills_dict = _collect_skills_from_dir(builtin_skills)
+
+    synced_count = 0
+    skipped_count = 0
+
+    for skill_name, skill_dir in active_skills_dict.items():
+        if skill_names is not None and skill_name not in skill_names:
+            continue
+
+        if skill_name in builtin_skills_dict:
+            builtin_skill_dir = builtin_skills_dict[skill_name]
+            if _is_directory_same(skill_dir, builtin_skill_dir):
+                skipped_count += 1
+                continue
+
+        target_dir = customized_skills / skill_name
+
+        try:
+            if target_dir.exists():
+                shutil.rmtree(target_dir)
+            shutil.copytree(skill_dir, target_dir)
+            logger.debug(
+                "Synced skill '%s' from active_skills to customized_skills.",
+                skill_name,
+            )
+            synced_count += 1
+        except Exception as e:
+            logger.debug(
+                "Failed to sync skill '%s' from active_skills to "
+                "customized_skills: %s",
+                skill_name,
+                e,
+            )
+
+    return synced_count, skipped_count
+
+
 def list_available_skills() -> list[str]:
     """
     List all available skills in active_skills directory.
@@ -227,8 +332,8 @@ def ensure_skills_initialized() -> None:
     Check if skills are initialized in active_skills directory.
 
     Logs a warning if no skills are found, or info about loaded skills.
-    Skills should be configured via `haibot init` or
-    `haibot skills config`.
+    Skills should be configured via `copaw init` or
+    `copaw skills config`.
     """
     active_skills = get_active_skills_dir()
     available = list_available_skills()
@@ -236,11 +341,11 @@ def ensure_skills_initialized() -> None:
     if not active_skills.exists() or not available:
         logger.warning(
             "No skills found in active_skills directory. "
-            "Run 'haibot init' or 'haibot skills config' "
+            "Run 'copaw init' or 'copaw skills config' "
             "to configure skills.",
         )
     else:
-        logger.info(
+        logger.debug(
             "Loaded %d skill(s) from active_skills: %s",
             len(available),
             ", ".join(available),
@@ -372,6 +477,21 @@ class SkillService:
         Returns:
             List of SkillInfo with name, content, source, and path.
         """
+        try:
+            synced, _ = sync_skills_from_active_to_customized()
+            if synced > 0:
+                logger.debug(
+                    "Synced %d skill(s) from active_skills to "
+                    "customized_skills",
+                    synced,
+                )
+        except Exception as e:
+            logger.debug(
+                "Failed to sync skills from active_skills to "
+                "customized_skills: %s",
+                e,
+            )
+
         skills: list[SkillInfo] = []
 
         # Collect from builtin and customized skills
@@ -401,6 +521,7 @@ class SkillService:
         overwrite: bool = False,
         references: dict[str, Any] | None = None,
         scripts: dict[str, Any] | None = None,
+        extra_files: dict[str, Any] | None = None,
     ) -> bool:
         """
         Create a new skill in customized_skills directory.
@@ -415,6 +536,9 @@ class SkillService:
             scripts: Optional tree structure for scripts/ subdirectory.
                 Can be flat {filename: content} or nested
                 {dirname: {filename: content}}.
+            extra_files: Optional tree structure for additional files
+                written to skill root (excluding SKILL.md), usually used
+                by imported hub skills that contain runtime assets.
 
         Returns:
             True if skill was created successfully, False otherwise.
@@ -476,7 +600,7 @@ class SkillService:
 
         # Check if skill already exists
         if skill_dir.exists() and not overwrite:
-            logger.warning(
+            logger.debug(
                 "Skill '%s' already exists in customized_skills. "
                 "Use overwrite=True to replace.",
                 name,
@@ -491,6 +615,14 @@ class SkillService:
 
             skill_dir.mkdir(parents=True, exist_ok=True)
             skill_md.write_text(content, encoding="utf-8")
+
+            # Create extra files in skill root
+            if extra_files:
+                _create_files_from_tree(skill_dir, extra_files)
+                logger.debug(
+                    "Created extra root files for skill '%s'.",
+                    name,
+                )
 
             # Create references subdirectory and files from tree
             if references:
@@ -573,43 +705,6 @@ class SkillService:
         return (active_dir / name).exists()
 
     @staticmethod
-    def update_skill_content(name: str, content: str) -> bool:
-        """
-        Update SKILL.md content of a customized skill.
-
-        Only updates the SKILL.md file; references and scripts are preserved.
-        Validates YAML Front Matter before writing.
-
-        Args:
-            name: Skill name.
-            content: New content for SKILL.md.
-
-        Returns:
-            True if updated successfully, False otherwise.
-        """
-        customized_dir = get_customized_skills_dir()
-        skill_dir = customized_dir / name
-        skill_md = skill_dir / "SKILL.md"
-
-        if not skill_dir.exists():
-            logger.error("Skill '%s' not found in customized_skills.", name)
-            return False
-
-        try:
-            post = frontmatter.loads(content)
-            if not post.get("name") or not post.get("description"):
-                logger.error(
-                    "SKILL.md must have 'name' and 'description' in YAML Front Matter.",
-                )
-                return False
-            skill_md.write_text(content, encoding="utf-8")
-            logger.debug("Updated SKILL.md for skill '%s'.", name)
-            return True
-        except Exception as e:
-            logger.error("Failed to update skill '%s': %s", name, e)
-            return False
-
-    @staticmethod
     def delete_skill(name: str) -> bool:
         """
         Delete a skill from customized_skills directory permanently.
@@ -649,6 +744,23 @@ class SkillService:
                 e,
             )
             return False
+
+    @staticmethod
+    def sync_from_active_to_customized(
+        skill_names: list[str] | None = None,
+    ) -> tuple[int, int]:
+        """
+        Sync skills from active_skills to customized_skills directory.
+
+        Args:
+            skill_names: List of skill names to sync. If None, sync all skills.
+
+        Returns:
+            Tuple of (synced_count, skipped_count).
+        """
+        return sync_skills_from_active_to_customized(
+            skill_names=skill_names,
+        )
 
     @staticmethod
     def load_skill_file(  # pylint: disable=too-many-return-statements

@@ -22,6 +22,12 @@ HEARTBEAT_TARGET_LAST = "last"
 # Env key for app log level (used by CLI and app load for reload child).
 LOG_LEVEL_ENV = "HAIBOT_LOG_LEVEL"
 
+# Env to indicate running inside a container (e.g. Docker). Set to 1/true/yes.
+RUNNING_IN_CONTAINER = os.environ.get("COPAW_RUNNING_IN_CONTAINER", "false")
+
+# Playwright: use system Chromium when set (e.g. in Docker).
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH_ENV = "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"
+
 # When True, expose /docs, /redoc, /openapi.json
 # (dev only; keep False in prod).
 DOCS_ENABLED = os.environ.get("HAIBOT_OPENAPI_DOCS", "false").lower() in (
@@ -39,13 +45,20 @@ CUSTOMIZED_SKILLS_DIR = WORKING_DIR / "customized_skills"
 # Memory directory
 MEMORY_DIR = WORKING_DIR / "memory"
 
+# Custom channel modules (installed via `copaw channels install`); manager
+# loads BaseChannel subclasses from here.
+CUSTOM_CHANNELS_DIR = WORKING_DIR / "custom_channels"
+
+# Local models directory
+MODELS_DIR = WORKING_DIR / "models"
+
 # Memory compaction configuration
-MEMORY_COMPACT_THRESHOLD = int(
-    os.environ.get("HAIBOT_MEMORY_COMPACT_THRESHOLD", "100000"),
+MEMORY_COMPACT_KEEP_RECENT = int(
+    os.environ.get("HAIBOT_MEMORY_COMPACT_KEEP_RECENT", "3"),
 )
 
-MEMORY_COMPACT_KEEP_RECENT = int(
-    os.environ.get("HAIBOT_MEMORY_COMPACT_KEEP_RECENT", "5"),
+MEMORY_COMPACT_RATIO = float(
+    os.environ.get("HAIBOT_MEMORY_COMPACT_RATIO", "0.7"),
 )
 
 DASHSCOPE_BASE_URL = os.environ.get(

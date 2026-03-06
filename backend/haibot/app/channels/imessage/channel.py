@@ -12,12 +12,14 @@ import shutil
 import asyncio
 from typing import Any, Dict, Optional
 
-from agentscope_runtime.engine.schemas.agent_schemas import RunStatus
+from agentscope_runtime.engine.schemas.agent_schemas import (
+    TextContent,
+    ContentType,
+)
 
-from ...config.config import IMessageChannelConfig
+from ....config.config import IMessageChannelConfig
 
-from .schema import Incoming
-from .base import BaseChannel, OnReplySent, ProcessHandler
+from ..base import BaseChannel, OnReplySent, ProcessHandler
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +50,6 @@ class IMessageChannel(BaseChannel):
         self._imsg_path: Optional[str] = None
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
-
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._queue: Optional[asyncio.Queue[Incoming]] = None
-        self._consumer_task: Optional[asyncio.Task] = None
 
     @classmethod
     def from_env(
@@ -105,15 +103,26 @@ class IMessageChannel(BaseChannel):
             raise RuntimeError(
                 "iMessage channel not initialized (imsg path missing).",
             )
-        subprocess.run(
+        # Capture stdout/stderr so imsg's "sent" (or similar) does not
+        # appear in our process output.
+        result = subprocess.run(
             [self._imsg_path, "send", "--to", to_handle, "--text", text],
-            check=True,
+            capture_output=True,
+            text=True,
+            check=False,
         )
+        if result.returncode != 0:
+            logger.warning(
+                "imsg send failed: returncode=%s stderr=%r",
+                result.returncode,
+                (result.stderr or "").strip() or None,
+            )
+            result.check_returncode()
 
-    def _emit_incoming_threadsafe(self, msg: Incoming) -> None:
-        if not self._loop or not self._queue:
-            return
-        self._loop.call_soon_threadsafe(self._queue.put_nowait, msg)
+    def _emit_request_threadsafe(self, request: Any) -> None:
+        """Enqueue request via manager (thread-safe)."""
+        if self._enqueue is not None:
+            self._enqueue(request)
 
     def _watcher_loop(self) -> None:
         logger.info(
@@ -155,22 +164,31 @@ ORDER BY m.ROWID ASC
                         if not sender:
                             continue
 
-                        msg = Incoming(
-                            channel="imessage",
-                            sender=sender,
-                            text=str(text) if text else "",
-                            meta={
-                                "chat_rowid": str(r["chat_rowid"]),
-                                "rowid": int(r["ROWID"]),
-                            },
-                        )
+                        content_parts = [
+                            TextContent(
+                                type=ContentType.TEXT,
+                                text=str(text) if text else "",
+                            ),
+                        ]
+                        meta = {
+                            "chat_rowid": str(r["chat_rowid"]),
+                            "rowid": int(r["ROWID"]),
+                        }
+                        native = {
+                            "channel_id": self.channel,
+                            "sender_id": sender,
+                            "content_parts": content_parts,
+                            "meta": meta,
+                        }
+                        request = self.build_agent_request_from_native(native)
+                        request.channel_meta = meta
                         logger.info(
                             "recv from=%s rowid=%s text=%r",
                             sender,
                             r["ROWID"],
                             text,
                         )
-                        self._emit_incoming_threadsafe(msg)
+                        self._emit_request_threadsafe(request)
 
                 except Exception:
                     logger.exception("poll iteration failed")
@@ -180,83 +198,39 @@ ORDER BY m.ROWID ASC
             conn.close()
             logger.info("watcher thread stopped")
 
-    async def _consume_loop(self) -> None:
-        assert self._queue is not None
-        while True:
-            msg = await self._queue.get()
-            try:
-                request = self.to_agent_request(msg)
-                last_response = None
-                event_count = 0
-                async for event in self._process(request):
-                    event_count += 1
-                    obj = getattr(event, "object", None)
-                    status = getattr(event, "status", None)
-                    ev_type = getattr(event, "type", None)
-                    logger.debug(
-                        "imessage event #%s: object=%s status=%s type=%s",
-                        event_count,
-                        obj,
-                        status,
-                        ev_type,
-                    )
-                    if obj == "message" and status == RunStatus.Completed:
-                        logger.info(
-                            "imessage sending completed message: type=%s "
-                            "to=%s",
-                            ev_type,
-                            msg.sender,
-                        )
-                        send_meta = {
-                            **(msg.meta or {}),
-                            "bot_prefix": self.bot_prefix,
-                        }
-                        await self.send_message_content(
-                            msg.sender,
-                            event,
-                            send_meta,
-                        )
-                    elif obj == "response":
-                        last_response = event
-                logger.info(
-                    "imessage stream done: event_count=%s has_response=%s",
-                    event_count,
-                    last_response is not None,
-                )
-                if last_response and getattr(last_response, "error", None):
-                    err = getattr(
-                        last_response.error,
-                        "message",
-                        str(last_response.error),
-                    )
-                    await asyncio.to_thread(
-                        self._send_sync,
-                        msg.sender,
-                        self.bot_prefix + f"Error: {err}",
-                    )
-                if self._on_reply_sent:
-                    self._on_reply_sent(
-                        self.channel,
-                        request.user_id or msg.sender,
-                        request.session_id or f"{self.channel}:{msg.sender}",
-                    )
-            except Exception:
-                logger.exception("process/send failed")
+    def build_agent_request_from_native(self, native_payload: Any) -> Any:
+        """Build AgentRequest from imessage native dict (runtime content)."""
+        payload = native_payload if isinstance(native_payload, dict) else {}
+        channel_id = payload.get("channel_id") or self.channel
+        sender_id = payload.get("sender_id") or ""
+        content_parts = payload.get("content_parts") or []
+        meta = payload.get("meta") or {}
+        session_id = self.resolve_session_id(sender_id, meta)
+        request = self.build_agent_request_from_user_content(
+            channel_id=channel_id,
+            sender_id=sender_id,
+            session_id=session_id,
+            content_parts=content_parts,
+            channel_meta=meta,
+        )
+        return request
+
+    async def _on_consume_error(
+        self,
+        request: Any,
+        to_handle: str,
+        err_text: str,
+    ) -> None:
+        """Send error via imessage _send_sync (sync API)."""
+        await asyncio.to_thread(self._send_sync, to_handle, err_text)
 
     async def start(self) -> None:
         if not self.enabled:
-            logger.info("disabled by env IMESSAGE_ENABLED=0")
+            logger.debug("disabled by env IMESSAGE_ENABLED=0")
             return
 
         self._imsg_path = self._ensure_imsg()
-        logger.info("imsg binary: %s", self._imsg_path)
-
-        self._loop = asyncio.get_running_loop()
-        self._queue = asyncio.Queue(maxsize=1000)
-        self._consumer_task = asyncio.create_task(
-            self._consume_loop(),
-            name="imessage_consumer",
-        )
+        logger.info(f"IMessage channel started with binary: {self._imsg_path}")
 
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._watcher_loop, daemon=True)
@@ -269,15 +243,6 @@ ORDER BY m.ROWID ASC
         self._stop_event.set()
         if self._thread:
             self._thread.join(timeout=5)
-
-        if self._consumer_task:
-            self._consumer_task.cancel()
-            try:
-                await self._consumer_task
-            except asyncio.CancelledError:
-                pass
-            except Exception:
-                pass
 
     async def send(
         self,

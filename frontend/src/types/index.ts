@@ -4,5 +4,9 @@ export * from './channel'
 export * from './cron'
 export * from './skill'
 export * from './model'
+export * from './mcp'
+export * from './agent'
 export * from './env'
 export * from './workspace'
+
+

@@ -76,6 +76,8 @@ function changeLocale(val: string) {
 
 const navItems = computed(() => [
   { path: 'models', label: t('settings.models.title'), icon: 'Box' },
+  { path: 'mcp', label: t('settings.mcp.title'), icon: 'Link' },
+  { path: 'agents', label: t('settings.agents.title'), icon: 'Avatar' },
   { path: 'channels', label: t('settings.channels.title'), icon: 'Connection' },
   { path: 'sessions', label: t('settings.sessions.title'), icon: 'UserFilled' },
   { path: 'workspace', label: t('settings.workspace.title'), icon: 'Suitcase' },

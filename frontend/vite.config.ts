@@ -2,9 +2,10 @@ import { defineConfig, loadEnv } from "vite";
 import vue from "@vitejs/plugin-vue";
 import { resolve } from "path";
 
-export default defineConfig(({ command, mode }) => {
+export default defineConfig(({ mode }) => {
   
   const env = loadEnv(mode, process.cwd(),'')
+  const apiBaseUrl = env.BASE_URL ?? ""
 
   return {
     plugins: [vue()],
@@ -14,21 +15,24 @@ export default defineConfig(({ command, mode }) => {
       },
     },
     define: {
-      __APP_ENV__: JSON.stringify(env.APP_ENV)
+      BASE_URL: JSON.stringify(apiBaseUrl),
+      TOKEN: JSON.stringify(env.TOKEN || ""),
+      MOBILE: false,
     },
     server: {
       port: 5173,
       proxy: {
-        "/agent": "http://127.0.0.1:8088",
-        "/chats": "http://127.0.0.1:8088",
-        "/config": "http://127.0.0.1:8088",
-        "/cron": "http://127.0.0.1:8088",
-        "/models": "http://127.0.0.1:8088",
-        "/skills": "http://127.0.0.1:8088",
-        "/envs": "http://127.0.0.1:8088",
-        "/workspace": "http://127.0.0.1:8088",
-        "/console": "http://127.0.0.1:8088",
-        "/version": "http://127.0.0.1:8088",
+        "/api/agent": "http://127.0.0.1:8088",
+        "/api/chats": "http://127.0.0.1:8088",
+        "/api/config": "http://127.0.0.1:8088",
+        "/api/cron": "http://127.0.0.1:8088",
+        "/api/models": "http://127.0.0.1:8088",
+        "/api/skills": "http://127.0.0.1:8088",
+        "/api/envs": "http://127.0.0.1:8088",
+        "/api/workspace": "http://127.0.0.1:8088",
+        "/api/console": "http://127.0.0.1:8088",
+        "/api/version": "http://127.0.0.1:8088",
+        "/api/mcp": "http://127.0.0.1:8088",
       },
     },
     build: {

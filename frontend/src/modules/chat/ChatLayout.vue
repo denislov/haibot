@@ -24,6 +24,23 @@
     <!-- Chat area -->
     <div class="chat-main">
       <template v-if="chatStore.activeChat">
+        <!-- Agent selector bar -->
+        <div class="agent-bar">
+          <span class="agent-bar-label">{{ $t('settings.agents.selectAgent') }}:</span>
+          <el-select
+            v-model="selectedAgentId"
+            size="small"
+            style="width: 160px"
+            @change="handleAgentChange"
+          >
+            <el-option
+              v-for="a in agentsList"
+              :key="a.id"
+              :label="a.name"
+              :value="a.id"
+            />
+          </el-select>
+        </div>
         <ChatWindow
           ref="chatWindowRef"
           :messages="chat.displayMessages.value"
@@ -69,7 +86,8 @@ import { useI18n } from 'vue-i18n'
 import { useChatStore } from '@/stores/chat'
 import { useChat } from './composables/useChat'
 import { createChat } from '@/api/chats'
-import type { ChatSpec } from '@/types'
+import { listAgents } from '@/api/agents'
+import type { ChatSpec, AgentInfo } from '@/types'
 import ChatSidebar from './components/ChatSidebar.vue'
 import ChatWindow from './components/ChatWindow.vue'
 import ChatInput from './components/ChatInput.vue'
@@ -84,6 +102,10 @@ const sidebarCollapsed = ref(false)
 const renameDialogVisible = ref(false)
 const renameName = ref('')
 const renamingChatId = ref<string | null>(null)
+
+// ── Agent selector ──
+const agentsList = ref<AgentInfo[]>([])
+const selectedAgentId = ref('main')
 
 function uuidv4(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
@@ -103,7 +125,7 @@ function handleNewChat() {
     channel: 'console',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    meta: { _isTemp: true },
+    meta: { _isTemp: true, agent_id: selectedAgentId.value },
   }
   chatStore.chats.unshift(temp)
   chatStore.setActiveChat(temp)
@@ -115,6 +137,8 @@ async function selectChat(selected: ChatSpec) {
   if (chatStore.activeChat?.id === selected.id) return
   chatStore.setActiveChat(selected)
   chat.clearMessages()
+  // Restore agent selection from chat meta
+  selectedAgentId.value = (selected.meta?.agent_id as string) || 'main'
   if (selected.meta?._isTemp) return
   try {
     const history = await chatStore.getChatHistory(selected.id)
@@ -142,7 +166,7 @@ async function sendMessage() {
         session_id: activeChat.session_id,
         user_id: activeChat.user_id,
         channel: 'console',
-        meta: {},
+        meta: { agent_id: selectedAgentId.value },
       })
       const idx = chatStore.chats.findIndex((c) => c.id === activeChat.id)
       if (idx !== -1) chatStore.chats[idx] = persisted
@@ -153,6 +177,8 @@ async function sendMessage() {
     }
   }
 
+  const currentAgentId = (chatStore.activeChat!.meta?.agent_id as string) || selectedAgentId.value
+
   await chat.sendMessage(
     text,
     chatStore.activeChat!.session_id,
@@ -160,7 +186,15 @@ async function sendMessage() {
     () => chatWindowRef.value?.scrollToBottom(),
     () => chatStore.loadChats(),
     (e) => ElMessage.error(t('chat.requestFailed') + ': ' + e.message),
+    currentAgentId,
   )
+}
+
+// ── Agent change ──
+function handleAgentChange(agentId: string) {
+  if (chatStore.activeChat) {
+    chatStore.activeChat.meta = { ...chatStore.activeChat.meta, agent_id: agentId }
+  }
 }
 
 // ── Chat Actions ──────────────────────────────────────────────────────────
@@ -198,10 +232,19 @@ async function confirmRename() {
 }
 
 onMounted(async () => {
+  // Load agents list
+  try {
+    agentsList.value = await listAgents()
+  } catch {
+    // fallback to main only
+    agentsList.value = [{ id: 'main', name: 'Main', description: '', is_main: true, files: [], created_at: '' }]
+  }
+
   await chatStore.loadChats()
   // Restore active chat's history if returning from settings
   const active = chatStore.activeChat
   if (active && !active.meta?._isTemp) {
+    selectedAgentId.value = (active.meta?.agent_id as string) || 'main'
     try {
       const history = await chatStore.getChatHistory(active.id)
       const display = chat.convertHistoryToDisplay(history.messages as unknown as Record<string, unknown>[])
@@ -247,6 +290,20 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.agent-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.agent-bar-label {
+  font-size: 13px;
+  color: var(--text-3);
 }
 
 .chat-empty-state {

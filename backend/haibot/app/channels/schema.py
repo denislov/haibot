@@ -1,93 +1,61 @@
 # -*- coding: utf-8 -*-
 """
-Channel message schema: per-channel incoming message and unified conversion
-protocol.
-
-Each channel implements:
-- to_agent_request(incoming) -> AgentRequest:
-    convert channel incoming to engine AgentRequest
-- send_response(to_handle, response, meta):
-    convert AgentResponse to channel reply and send
+Channel schema: channel type identifiers, routing (ChannelAddress),
+and conversion protocol.
 """
 from __future__ import annotations
 
-from typing import (
-    Literal,
-    Optional,
-    List,
-    Any,
-    Protocol,
-    runtime_checkable,
-)
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, Protocol, runtime_checkable
 
-from pydantic import BaseModel, Field
 
-ChannelType = Literal[
+@dataclass
+class ChannelAddress:
+    """
+    Unified routing for send: kind + id + extra.
+    Replaces ad-hoc meta keys (channel_id, user_id, session_webhook, etc.).
+    """
+
+    kind: str  # "dm" | "channel" | "webhook" | "console" | ...
+    id: str
+    extra: Optional[Dict[str, Any]] = None
+
+    def to_handle(self) -> str:
+        """String handle for to_handle (e.g. discord:ch:123)."""
+        if self.extra and "to_handle" in self.extra:
+            return str(self.extra["to_handle"])
+        return f"{self.kind}:{self.id}"
+
+
+# Built-in channel type identifiers. Plugin channels use arbitrary str keys.
+BUILTIN_CHANNEL_TYPES = (
     "imessage",
     "discord",
     "dingtalk",
     "feishu",
     "qq",
+    "telegram",
     "console",
-]
+)
 
-# Default channel used across runner / config when no channel is specified.
+# ChannelType is str to allow plugin channels; built-in set above.
+ChannelType = str
+
+# Default channel when none is specified (runner / config).
 DEFAULT_CHANNEL: ChannelType = "console"
 
 
-# -------- Incoming content item: text, image, video, audio, file --------
-class IncomingContentItem(BaseModel):
-    """Single incoming content item, aligned with
-    AgentRequest.input[].content[].
-    """
-
-    type: Literal["text", "image", "video", "audio", "file"] = "text"
-    text: Optional[str] = None
-    url: Optional[str] = None
-    # Extension; channels may put native payload here
-    meta: dict = Field(default_factory=dict)
-
-
-class Incoming(BaseModel):
-    """
-    Unified envelope for per-channel incoming messages.
-
-    - Use text for plain text; use content for multimodal.
-    - When content is empty and text is set, conversion treats it as one
-        text content.
-    """
-
-    channel: ChannelType
-    sender: str
-    text: str = ""
-    content: Optional[List[IncomingContentItem]] = None
-    meta: dict = Field(default_factory=dict)
-
-    def get_content_list(self) -> List[IncomingContentItem]:
-        """Return content list for building AgentRequest
-        (backward compat: text-only as single item).
-        """
-        if self.content:
-            return self.content
-        if self.text:
-            return [IncomingContentItem(type="text", text=self.text)]
-        return []
-
-
-# -------- Conversion protocol: channel message <->
-# AgentRequest/AgentResponse --------
 @runtime_checkable
 class ChannelMessageConverter(Protocol):
     """
-    Each channel implements: channel message <-> AgentRequest/AgentResponse.
-    Protocol aligns text, image, video where possible; rest in meta or
-    documented by channel.
+    Protocol for channel message conversion.
+    Channels convert native payloads to AgentRequest and send responses.
     """
 
-    def to_agent_request(self, incoming: Incoming) -> Any:
+    def build_agent_request_from_native(self, native_payload: Any) -> Any:
         """
-        Convert this channel's Incoming to AgentRequest
-        (input as List[Message]).
+        Convert this channel's native message payload to AgentRequest.
+        Use runtime Message and Content types; no intermediate envelope.
         """
 
     async def send_response(
@@ -96,6 +64,4 @@ class ChannelMessageConverter(Protocol):
         response: Any,
         meta: Optional[dict] = None,
     ) -> None:
-        """
-        Convert AgentResponse (or stream aggregate) to channel reply and send.
-        """
+        """Convert AgentResponse to channel reply and send."""

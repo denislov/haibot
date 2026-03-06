@@ -23,6 +23,16 @@ export default createRouter({
           component: () => import('@/modules/settings/pages/ModelsSettings.vue'),
         },
         {
+          path: 'mcp',
+          name: 'settings-mcp',
+          component: () => import('@/modules/settings/pages/MCPSettings.vue'),
+        },
+        {
+          path: 'agents',
+          name: 'settings-agents',
+          component: () => import('@/modules/settings/pages/AgentsSettings.vue'),
+        },
+        {
           path: 'channels',
           name: 'settings-channels',
           component: () => import('@/modules/settings/pages/ChannelsSettings.vue'),

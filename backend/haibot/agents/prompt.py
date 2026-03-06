@@ -1,66 +1,71 @@
 # -*- coding: utf-8 -*-
 # flake8: noqa: E501
+"""System prompt building utilities.
+
+This module provides utilities for building system prompts from
+markdown configuration files in the working directory.
+"""
 import logging
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-SYS_PROMPT = """
+# Default fallback prompt
+DEFAULT_SYS_PROMPT = """
 You are a helpful assistant.
 """
 
+# Backward compatibility alias
+SYS_PROMPT = DEFAULT_SYS_PROMPT
 
-def build_system_prompt_from_working_dir() -> (
-    str
-):  # pylint: disable=too-many-branches
-    """
-    Build system prompt by reading markdown files from working directory.
 
-    This function constructs the system prompt by loading markdown files from
-    WORKING_DIR (~/.haibot by default). These files define the agent's behavior,
-    personality, and operational guidelines.
-
-    Loading order and priority:
-    1. AGENTS.md (required) - Detailed workflows, rules, and guidelines
-    2. SOUL.md (required) - Core identity and behavioral principles
-    3. PROFILE.md (optional) - Agent identity and user profile
-
-    Returns:
-        str: Constructed system prompt from markdown files.
-             If required files don't exist, returns the default SYS_PROMPT.
-
-    Example:
-        If working_dir contains AGENTS.md, SOUL.md and PROFILE.md, they will be combined:
-        "# AGENTS.md\n\n...\n\n# SOUL.md\n\n...\n\n# PROFILE.md\n\n..."
-    """
-    from ..constant import WORKING_DIR
-
-    working_dir = Path(WORKING_DIR)
+class PromptConfig:
+    """Configuration for system prompt building."""
 
     # Define file loading order: (filename, required)
-    file_order = [
+    FILE_ORDER = [
         ("AGENTS.md", True),
         ("SOUL.md", True),
         ("PROFILE.md", False),
     ]
 
-    prompt_parts = []
-    loaded_count = 0
 
-    for filename, required in file_order:
-        file_path = working_dir / filename
+class PromptBuilder:
+    """Builder for constructing system prompts from markdown files."""
+
+    def __init__(self, working_dir: Path):
+        """Initialize prompt builder.
+
+        Args:
+            working_dir: Directory containing markdown configuration files
+        """
+        self.working_dir = working_dir
+        self.prompt_parts = []
+        self.loaded_count = 0
+
+    def _load_file(self, filename: str, required: bool) -> bool:
+        """Load a single markdown file.
+
+        Args:
+            filename: Name of the file to load
+            required: Whether the file is required
+
+        Returns:
+            True if file was loaded successfully, False otherwise
+        """
+        file_path = self.working_dir / filename
 
         if not file_path.exists():
             if required:
                 logger.warning(
                     "%s not found in working directory (%s), using default prompt",
                     filename,
-                    working_dir,
+                    self.working_dir,
                 )
-                return SYS_PROMPT
+                return False
             else:
                 logger.debug("Optional file %s not found, skipping", filename)
-                continue
+                return True  # Not an error for optional files
 
         try:
             content = file_path.read_text(encoding="utf-8").strip()
@@ -72,16 +77,18 @@ def build_system_prompt_from_working_dir() -> (
                     content = parts[2].strip()
 
             if content:
-                if prompt_parts:  # Add separator if not first section
-                    prompt_parts.append("")
+                if self.prompt_parts:  # Add separator if not first section
+                    self.prompt_parts.append("")
                 # Add section header with filename
-                prompt_parts.append(f"# {filename}")
-                prompt_parts.append("")
-                prompt_parts.append(content)
-                loaded_count += 1
+                self.prompt_parts.append(f"# {filename}")
+                self.prompt_parts.append("")
+                self.prompt_parts.append(content)
+                self.loaded_count += 1
                 logger.debug("Loaded %s", filename)
             else:
                 logger.debug("Skipped empty file: %s", filename)
+
+            return True
 
         except Exception as e:
             if required:
@@ -91,56 +98,100 @@ def build_system_prompt_from_working_dir() -> (
                     e,
                     exc_info=True,
                 )
-                return SYS_PROMPT
+                return False
             else:
                 logger.warning(
                     "Failed to read optional file %s: %s",
                     filename,
                     e,
                 )
-                continue
+                return True  # Not fatal for optional files
 
-    if not prompt_parts:
-        logger.warning("No content loaded from working directory")
-        return SYS_PROMPT
+    def build(self) -> str:
+        """Build the system prompt from markdown files.
 
-    # Join all parts with double newlines
-    final_prompt = "\n\n".join(prompt_parts)
+        Returns:
+            Constructed system prompt string
+        """
+        for filename, required in PromptConfig.FILE_ORDER:
+            if not self._load_file(filename, required):
+                # Required file failed to load
+                return DEFAULT_SYS_PROMPT
 
-    logger.debug(
-        "System prompt built from %d file(s), total length: %d chars",
-        loaded_count,
-        len(final_prompt),
-    )
+        if not self.prompt_parts:
+            logger.warning("No content loaded from working directory")
+            return DEFAULT_SYS_PROMPT
 
-    return final_prompt
+        # Join all parts with double newlines
+        final_prompt = "\n\n".join(self.prompt_parts)
+
+        logger.debug(
+            "System prompt built from %d file(s), total length: %d chars",
+            self.loaded_count,
+            len(final_prompt),
+        )
+
+        return final_prompt
+
+
+def build_system_prompt_for_agent(agent_id: str = "main") -> str:
+    """
+    Build system prompt from the workspace directory for a specific agent.
+
+    Each agent has its own subdirectory under WORKING_DIR/workspace/{agent_id}/
+    containing AGENTS.md, SOUL.md, PROFILE.md, etc.
+
+    Args:
+        agent_id: Agent identifier, defaults to "main"
+
+    Returns:
+        str: Constructed system prompt from the agent's workspace files.
+    """
+    from ..constant import WORKING_DIR
+
+    workspace_dir = WORKING_DIR / "workspace" / agent_id
+    if not workspace_dir.is_dir():
+        logger.warning(
+            "Agent workspace %s does not exist, falling back to WORKING_DIR",
+            workspace_dir,
+        )
+        # Fallback to root WORKING_DIR for backward compatibility
+        workspace_dir = WORKING_DIR
+
+    builder = PromptBuilder(working_dir=Path(workspace_dir))
+    return builder.build()
+
+
+def build_system_prompt_from_working_dir() -> str:
+    """
+    Build system prompt by reading markdown files from working directory.
+
+    This is a backward-compatible wrapper that builds the prompt for the
+    main agent.
+
+    Returns:
+        str: Constructed system prompt from markdown files.
+    """
+    return build_system_prompt_for_agent("main")
 
 
 def build_bootstrap_guidance(
-    bootstrap_content: str,
     language: str = "zh",
 ) -> str:
     """Build bootstrap guidance message for first-time setup.
 
     Args:
-        bootstrap_content: Content from BOOTSTRAP.md file
         language: Language code (en/zh)
 
     Returns:
         Formatted bootstrap guidance message
     """
     if language == "en":
-        return f"""# 🌟 BOOTSTRAP MODE ACTIVATED
+        return """# 🌟 BOOTSTRAP MODE ACTIVATED
 
 **IMPORTANT: You are in first-time setup mode.**
 
 A `BOOTSTRAP.md` file exists in your working directory. This means you should guide the user through the bootstrap process to establish your identity and preferences.
-
-Here's your bootstrap guide:
-
----
-{bootstrap_content}
----
 
 **Your task:**
 1. Read the BOOTSTRAP.md file, greet the user warmly as a first meeting, and guide them through the bootstrap process.
@@ -154,17 +205,11 @@ If the user explicitly says they want to skip the bootstrap or just want their q
 **Original user message:**
 """
     else:  # zh
-        return f"""# 🌟 引导模式已激活
+        return """# 🌟 引导模式已激活
 
 **重要：你正处于首次设置模式。**
 
 你的工作目录中存在 `BOOTSTRAP.md` 文件。这意味着你应该引导用户完成引导流程，以建立你的身份和偏好。
-
-这是你的引导指南：
-
----
-{bootstrap_content}
----
 
 **你的任务：**
 1. 阅读 BOOTSTRAP.md 文件，友好地表示初次见面，引导用户完成引导流程。
@@ -177,3 +222,14 @@ If the user explicitly says they want to skip the bootstrap or just want their q
 
 **用户的原始消息：**
 """
+
+
+__all__ = [
+    "build_system_prompt_for_agent",
+    "build_system_prompt_from_working_dir",
+    "build_bootstrap_guidance",
+    "PromptBuilder",
+    "PromptConfig",
+    "DEFAULT_SYS_PROMPT",
+    "SYS_PROMPT",  # Backward compatibility
+]
