@@ -26,29 +26,23 @@ async def stream_agent(
     msgs: list[Msg],
     agent_id: str,
     agent_name: str,
-) -> AsyncGenerator[dict, None]:
-    """Stream one agent's response, tagging every event with agent_id/name.
+) -> AsyncGenerator[tuple[Msg, bool], None]:
+    """Stream one agent's response, injecting agent_id/name into msg.metadata.
 
-    Yields raw SSE-style event dicts. The last item is a special
-    ``{"object": "group_final_msg", "msg": <Msg>, "agent_id": agent_id}``
-    sentinel that carries the final reply for history tracking.
+    Yields (Msg, bool) pairs compatible with agentscope runtime's stream adapter.
+    The agent_id and agent_name are set in msg.metadata for frontend routing.
     """
-    final_msg: Msg | None = None
     async for msg, last in stream_printing_messages(
         agents=[agent],
         coroutine_task=agent(msgs),
     ):
-        if isinstance(msg, dict):
-            yield tag_event(msg, agent_id=agent_id, agent_name=agent_name)
-        if last and isinstance(msg, Msg):
-            final_msg = msg
-
-    if final_msg is not None:
-        yield {
-            "object": "group_final_msg",
-            "msg": final_msg,
-            "agent_id": agent_id,
-        }
+        if isinstance(msg, Msg):
+            if msg.metadata is None:
+                msg.metadata = {}
+            if isinstance(msg.metadata, dict):
+                msg.metadata.setdefault("agent_id", agent_id)
+                msg.metadata.setdefault("agent_name", agent_name)
+            yield msg, last
 
 
 def _build_group_host_context(
@@ -146,8 +140,8 @@ class GroupChatOrchestrator:
         session_id: str,
         user_id: str,
         channel: str,
-    ) -> AsyncGenerator[dict, None]:
-        """Run the group chat loop, yielding tagged SSE event dicts."""
+    ) -> AsyncGenerator[tuple[Msg, bool], None]:
+        """Run the group chat loop, yielding (Msg, bool) pairs."""
         config = self._config
         participant_info = self._get_participant_info()
         history: list[Msg] = [user_msg]
@@ -171,13 +165,12 @@ class GroupChatOrchestrator:
             host.set_console_output_enabled(enabled=False)
 
             host_final: Msg | None = None
-            async for event in stream_agent(
+            async for msg, last in stream_agent(
                 host, list(history), config.host_agent_id, host_name
             ):
-                if event.get("object") == "group_final_msg":
-                    host_final = event["msg"]
-                else:
-                    yield event
+                yield msg, last
+                if last:
+                    host_final = msg
 
             if host_final is None:
                 break
@@ -205,18 +198,16 @@ class GroupChatOrchestrator:
                 )
                 await p_agent.register_mcp_clients()
                 p_agent.set_console_output_enabled(enabled=False)
-                async for ev in stream_agent(p_agent, list(history), pid, pname):
-                    yield ev
+                async for item in stream_agent(p_agent, list(history), pid, pname):
+                    yield item
 
             participant_streams = [_participant_stream(pid) for pid in mentioned_ids]
 
-            async for event in merge_streams(participant_streams):
-                if event.get("object") == "group_final_msg":
-                    participant_finals.append(event["msg"])
-                else:
-                    yield event
+            async for item in merge_streams(participant_streams):
+                msg, last = item
+                yield msg, last
+                if last:
+                    participant_finals.append(msg)
 
             history.extend(participant_finals)
-
-        # ── Discussion ended ──────────────────────────────────────────────
-        yield {"object": "group_event", "type": "group_done"}
+        # Stream ends naturally — no synthetic group_done event needed

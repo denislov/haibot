@@ -150,6 +150,7 @@ export function useChat() {
     const agentCallBlockMap = new Map<string, Map<string, DisplayBlock>>()
     const agentOutputMsgIds = new Map<string, Set<string>>()
     const agentBubbleMap = new Map<string, DisplayMessage>()
+    const msgIdToAgentId = new Map<string, string>()
 
     const MAIN = '__main__'
 
@@ -177,16 +178,24 @@ export function useChat() {
     }
 
     function onEvent(event: Record<string, unknown>) {
-      const eventAgentId = (event.agent_id as string | undefined) ?? MAIN
-      const agentName = event.agent_name as string | undefined
+      // Determine which agent this event belongs to
+      let eventAgentId = MAIN
+      let agentName: string | undefined
 
-      // Handle group_done event
-      if (event.object === 'group_event' && event.type === 'group_done') {
-        for (const bubble of agentBubbleMap.values()) {
-          bubble.streaming = false
+      // Check message-level events for agent_id in metadata
+      if (event.object === 'message' && event.status === 'in_progress') {
+        const metadata = event.metadata as Record<string, unknown> | undefined
+        if (metadata?.agent_id) {
+          eventAgentId = metadata.agent_id as string
+          agentName = metadata.agent_name as string | undefined
+          // Map this msg id to the agent so content events can be routed
+          if (event.id) {
+            msgIdToAgentId.set(event.id as string, eventAgentId)
+          }
         }
-        assistantMsg.streaming = false
-        return
+      } else if (event.object === 'content' && event.msg_id) {
+        // Route content events via msg_id → agentId mapping
+        eventAgentId = msgIdToAgentId.get(event.msg_id as string) ?? MAIN
       }
 
       // Route to per-agent bubble when agent_id is present

@@ -33,9 +33,7 @@ async def test_orchestrator_single_round_no_mentions(tmp_path):
     host_reply = Msg("main", "这个问题我来回答，无需讨论。", "assistant")
 
     async def fake_stream_agent(agent, msgs, agent_id, agent_name):
-        yield {"object": "message", "type": "message", "status": "in_progress",
-               "id": "m1", "agent_id": agent_id, "agent_name": agent_name}
-        yield {"object": "group_final_msg", "msg": host_reply, "agent_id": agent_id}
+        yield host_reply, True
 
     with patch(
         "haibot.app.group_chat.orchestrator.stream_agent",
@@ -60,8 +58,9 @@ async def test_orchestrator_single_round_no_mentions(tmp_path):
         ):
             events.append(event)
 
-    # Should have ended with group_done after one round (no @mentions)
-    objects = [e.get("object") for e in events]
-    assert "group_event" in objects
-    done_events = [e for e in events if e.get("type") == "group_done"]
-    assert len(done_events) == 1
+    # events is a list of (msg, last) tuples
+    assert len(events) > 0
+    # At least one (msg, True) pair — the final message
+    last_msgs = [msg for msg, last in events if last]
+    assert len(last_msgs) >= 1
+    # No participants should have run (host had no @mentions → loop ends)

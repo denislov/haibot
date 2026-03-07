@@ -184,13 +184,13 @@ class AgentRunner(Runner):
                     language=language,
                 )
 
-                async for event in orchestrator.run(
+                async for msg, last in orchestrator.run(
                     user_msg=msgs[0] if msgs else Msg("user", "", "user"),
                     session_id=session_id,
                     user_id=user_id,
                     channel=channel,
                 ):
-                    yield event, False  # group chat events: last=False until group_done
+                    yield msg, last
                 return
 
             config = load_config()
