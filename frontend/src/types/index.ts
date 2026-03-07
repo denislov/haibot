@@ -8,5 +8,6 @@ export * from './mcp'
 export * from './agent'
 export * from './env'
 export * from './workspace'
+export * from './group_chat'
 
 

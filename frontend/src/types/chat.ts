@@ -54,4 +54,6 @@ export interface DisplayMessage {
   role: 'user' | 'assistant'
   blocks: DisplayBlock[]
   streaming?: boolean
+  agentId?: string     // set for all messages in group chat mode
+  agentName?: string   // display name badge
 }
