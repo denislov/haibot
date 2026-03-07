@@ -48,7 +48,7 @@
         <el-form-item :label="$t('settings.groupChats.groupId')" required>
           <el-input v-model="form.id" :disabled="!!editingGC" placeholder="e.g. my-group" />
         </el-form-item>
-        <el-form-item :label="$t('common.edit') === 'Edit' ? 'Name' : '名称'" required>
+        <el-form-item :label="$t('settings.groupChats.name')" required>
           <el-input v-model="form.name" placeholder="e.g. Research Team" />
         </el-form-item>
         <el-form-item :label="$t('settings.groupChats.host')" required>
@@ -169,8 +169,8 @@ async function handleDelete(gc: GroupChatConfig) {
     await ElMessageBox.confirm(`Delete group chat "${gc.name}"?`, 'Confirm', { type: 'warning' })
     await deleteGroupChat(gc.id)
     await load()
-  } catch {
-    // cancelled
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error(String(e))
   }
 }
 

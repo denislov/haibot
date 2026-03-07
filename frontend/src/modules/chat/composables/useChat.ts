@@ -177,7 +177,7 @@ export function useChat() {
     }
 
     function onEvent(event: Record<string, unknown>) {
-      const agentId = (event.agent_id as string | undefined) ?? MAIN
+      const eventAgentId = (event.agent_id as string | undefined) ?? MAIN
       const agentName = event.agent_name as string | undefined
 
       // Handle group_done event
@@ -190,11 +190,11 @@ export function useChat() {
       }
 
       // Route to per-agent bubble when agent_id is present
-      if (agentId !== MAIN) {
-        const bubble = getOrCreateAgentBubble(agentId, agentName)
-        const aMsgBlockMap = agentMsgBlockMap.get(agentId)!
-        const aCallBlockMap = agentCallBlockMap.get(agentId)!
-        const aOutputMsgIds = agentOutputMsgIds.get(agentId)!
+      if (eventAgentId !== MAIN) {
+        const bubble = getOrCreateAgentBubble(eventAgentId, agentName)
+        const aMsgBlockMap = agentMsgBlockMap.get(eventAgentId)!
+        const aCallBlockMap = agentCallBlockMap.get(eventAgentId)!
+        const aOutputMsgIds = agentOutputMsgIds.get(eventAgentId)!
 
         function pushAgentBlock(block: DisplayBlock): DisplayBlock {
           bubble.blocks.push(block)
@@ -353,6 +353,11 @@ export function useChat() {
       async () => {
         for (const block of msgBlockMap.values()) {
           if (block.kind === 'tool_call' && block.loading) block.loading = false
+        }
+        for (const [, blockMap] of agentMsgBlockMap) {
+          for (const block of blockMap.values()) {
+            if (block.kind === 'tool_call' && block.loading) block.loading = false
+          }
         }
         for (const bubble of agentBubbleMap.values()) bubble.streaming = false
         streaming.value = false

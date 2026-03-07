@@ -179,6 +179,7 @@ export default {
       participants: '参与者',
       maxRounds: '最大轮次',
       groupId: '群聊 ID',
+      name: '名称',
     },
     crons: {
       title: '定时任务',

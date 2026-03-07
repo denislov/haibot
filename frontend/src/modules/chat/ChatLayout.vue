@@ -166,6 +166,7 @@ async function selectChat(selected: ChatSpec) {
   chat.clearMessages()
   // Restore agent selection from chat meta
   selectedAgentId.value = (selected.meta?.agent_id as string) || 'main'
+  currentGroupId.value = (selected.meta?.group_id as string) ?? null
   if (selected.meta?._isTemp) return
   try {
     const history = await chatStore.getChatHistory(selected.id)
@@ -193,7 +194,7 @@ async function sendMessage() {
         session_id: activeChat.session_id,
         user_id: activeChat.user_id,
         channel: 'console',
-        meta: { agent_id: selectedAgentId.value },
+        meta: { agent_id: selectedAgentId.value, ...(activeChat.meta?.group_id ? { group_id: activeChat.meta.group_id } : {}) },
       })
       const idx = chatStore.chats.findIndex((c) => c.id === activeChat.id)
       if (idx !== -1) chatStore.chats[idx] = persisted

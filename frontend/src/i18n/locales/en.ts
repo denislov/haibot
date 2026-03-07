@@ -138,6 +138,7 @@ export default {
       participants: 'Participants',
       maxRounds: 'Max Rounds',
       groupId: 'Group Chat ID',
+      name: 'Name',
     },
     crons: {
       title: 'Cron Jobs',
