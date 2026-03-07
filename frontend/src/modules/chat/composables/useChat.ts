@@ -122,6 +122,7 @@ export function useChat() {
     onDone?: () => void,
     onError?: (e: Error) => void,
     agentId?: string,
+    groupId?: string,
   ) {
     if (!text.trim() || streaming.value) return
 
@@ -139,10 +140,36 @@ export function useChat() {
     streaming.value = true
     scrollToBottom()
 
-    // Event routing maps
+    // Event routing maps (main / single-agent path)
     const msgBlockMap = new Map<string, DisplayBlock>()
     const callBlockMap = new Map<string, DisplayBlock>()
     const outputMsgIds = new Set<string>()
+
+    // Per-agent maps for group chat
+    const agentMsgBlockMap = new Map<string, Map<string, DisplayBlock>>()
+    const agentCallBlockMap = new Map<string, Map<string, DisplayBlock>>()
+    const agentOutputMsgIds = new Map<string, Set<string>>()
+    const agentBubbleMap = new Map<string, DisplayMessage>()
+
+    const MAIN = '__main__'
+
+    function getOrCreateAgentBubble(aid: string, aName?: string): DisplayMessage {
+      if (agentBubbleMap.has(aid)) return agentBubbleMap.get(aid)!
+      const bubble: DisplayMessage = {
+        id: uuidv4(),
+        role: 'assistant',
+        agentId: aid,
+        agentName: aName,
+        blocks: [],
+        streaming: true,
+      }
+      displayMessages.value.push(bubble)
+      agentBubbleMap.set(aid, bubble)
+      agentMsgBlockMap.set(aid, new Map())
+      agentCallBlockMap.set(aid, new Map())
+      agentOutputMsgIds.set(aid, new Set())
+      return bubble
+    }
 
     function pushBlock(block: DisplayBlock): DisplayBlock {
       assistantMsg.blocks.push(block)
@@ -150,6 +177,103 @@ export function useChat() {
     }
 
     function onEvent(event: Record<string, unknown>) {
+      const agentId = (event.agent_id as string | undefined) ?? MAIN
+      const agentName = event.agent_name as string | undefined
+
+      // Handle group_done event
+      if (event.object === 'group_event' && event.type === 'group_done') {
+        for (const bubble of agentBubbleMap.values()) {
+          bubble.streaming = false
+        }
+        assistantMsg.streaming = false
+        return
+      }
+
+      // Route to per-agent bubble when agent_id is present
+      if (agentId !== MAIN) {
+        const bubble = getOrCreateAgentBubble(agentId, agentName)
+        const aMsgBlockMap = agentMsgBlockMap.get(agentId)!
+        const aCallBlockMap = agentCallBlockMap.get(agentId)!
+        const aOutputMsgIds = agentOutputMsgIds.get(agentId)!
+
+        function pushAgentBlock(block: DisplayBlock): DisplayBlock {
+          bubble.blocks.push(block)
+          return bubble.blocks[bubble.blocks.length - 1]
+        }
+
+        const obj = event.object as string
+        const evStatus = event.status as string | undefined
+
+        if (obj === 'message') {
+          const type = event.type as string
+          const msgId = event.id as string
+
+          if (evStatus === 'in_progress') {
+            if (type === 'message') {
+              const block = pushAgentBlock({ id: uuidv4(), kind: 'text', text: '' })
+              aMsgBlockMap.set(msgId, block)
+            } else if (type === 'reasoning') {
+              const block = pushAgentBlock({ id: uuidv4(), kind: 'reasoning', text: '', expanded: true })
+              aMsgBlockMap.set(msgId, block)
+            } else if (
+              type === 'plugin_call' || type === 'function_call' ||
+              type === 'mcp_call' || type === 'component_call'
+            ) {
+              const block = pushAgentBlock({
+                id: uuidv4(), kind: 'tool_call', toolType: type,
+                toolName: '', toolArgs: undefined, expanded: false, loading: true,
+              })
+              aMsgBlockMap.set(msgId, block)
+            } else if (
+              type === 'plugin_call_output' || type === 'function_call_output' ||
+              type === 'mcp_call_output' || type === 'component_call_output'
+            ) {
+              aOutputMsgIds.add(msgId)
+            }
+          } else if (evStatus === 'completed') {
+            const block = aMsgBlockMap.get(msgId)
+            if (block && block.kind === 'reasoning') {
+              block.expanded = false
+            }
+          }
+        } else if (obj === 'content') {
+          const type = event.type as string
+          const msgId = event.msg_id as string
+          const evContentStatus = event.status as string | undefined
+
+          if (type === 'text' && event.delta === true) {
+            const block = aMsgBlockMap.get(msgId)
+            if (block && (block.kind === 'text' || block.kind === 'reasoning')) {
+              block.text = (block.text || '') + (event.text as string || '')
+              scrollToBottom()
+            }
+          } else if (type === 'data') {
+            const data = event.data as Record<string, unknown>
+            const callId = data.call_id as string | undefined
+
+            if (aOutputMsgIds.has(msgId)) {
+              if (callId) {
+                const toolBlock = aCallBlockMap.get(callId)
+                if (toolBlock) {
+                  const rawOutput = data.output as string | undefined
+                  if (rawOutput !== undefined) toolBlock.toolOutput = rawOutput
+                  if (evContentStatus === 'completed') toolBlock.loading = false
+                }
+              }
+            } else {
+              const block = aMsgBlockMap.get(msgId)
+              if (block && block.kind === 'tool_call') {
+                if (data.name) block.toolName = data.name as string
+                if (data.arguments !== undefined) block.toolArgs = data.arguments as string
+                if (callId) aCallBlockMap.set(callId, block)
+              }
+            }
+          }
+        }
+        return
+      }
+
+      // ── Main / single-agent path ──
       const obj = event.object as string
       const evStatus = event.status as string | undefined
 
@@ -230,6 +354,7 @@ export function useChat() {
         for (const block of msgBlockMap.values()) {
           if (block.kind === 'tool_call' && block.loading) block.loading = false
         }
+        for (const bubble of agentBubbleMap.values()) bubble.streaming = false
         streaming.value = false
         assistantMsg.streaming = false
         abortController = null
@@ -251,6 +376,7 @@ export function useChat() {
       },
       abortController.signal,
       agentId,
+      groupId,
     )
   }
 

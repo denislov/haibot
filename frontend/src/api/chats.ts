@@ -29,6 +29,7 @@ export async function streamQuery(
   onError: (e: Error) => void,
   signal?: AbortSignal,
   agentId?: string,
+  groupId?: string,
 ) {
   const body: Record<string, unknown> = {
     input: [
@@ -42,8 +43,11 @@ export async function streamQuery(
     user_id: userId,
     stream: true,
   }
-  if (agentId) {
-    body.metadata = { agent_id: agentId }
+  if (agentId || groupId) {
+    const meta: Record<string, unknown> = {}
+    if (agentId) meta.agent_id = agentId
+    if (groupId) meta.group_id = groupId
+    body.metadata = meta
   }
 
   try {
