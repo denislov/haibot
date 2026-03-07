@@ -5,11 +5,14 @@
       :chats="chatStore.chats"
       :active-chat-id="chatStore.activeChat?.id ?? null"
       :collapsed="sidebarCollapsed"
+      :group-chats="groupChats"
+      :active-group-id="currentGroupId"
       @toggle="sidebarCollapsed = !sidebarCollapsed"
       @new-chat="handleNewChat"
       @select-chat="selectChat"
       @chat-action="handleChatAction"
       @open-settings="router.push('/settings')"
+      @new-group-chat-session="handleNewGroupChatSession"
     />
 
     <!-- Expand button (when sidebar collapsed) -->
@@ -87,7 +90,9 @@ import { useChatStore } from '@/stores/chat'
 import { useChat } from './composables/useChat'
 import { createChat } from '@/api/chats'
 import { listAgents } from '@/api/agents'
+import { listGroupChats } from '@/api/group_chats'
 import type { ChatSpec, AgentInfo } from '@/types'
+import type { GroupChatConfig } from '@/types/group_chat'
 import ChatSidebar from './components/ChatSidebar.vue'
 import ChatWindow from './components/ChatWindow.vue'
 import ChatInput from './components/ChatInput.vue'
@@ -106,6 +111,10 @@ const renamingChatId = ref<string | null>(null)
 // ── Agent selector ──
 const agentsList = ref<AgentInfo[]>([])
 const selectedAgentId = ref('main')
+
+// ── Group chats ──
+const groupChats = ref<GroupChatConfig[]>([])
+const currentGroupId = ref<string | null>(null)
 
 function uuidv4(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
@@ -126,6 +135,24 @@ function handleNewChat() {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     meta: { _isTemp: true, agent_id: selectedAgentId.value },
+  }
+  chatStore.chats.unshift(temp)
+  chatStore.setActiveChat(temp)
+  chat.clearMessages()
+}
+
+// ── New Group Chat Session ────────────────────────────────────────────────
+function handleNewGroupChatSession(gc: GroupChatConfig) {
+  currentGroupId.value = gc.id
+  const temp: ChatSpec = {
+    id: 'new-' + Date.now(),
+    name: gc.name,
+    session_id: uuidv4(),
+    user_id: 'default',
+    channel: 'console',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    meta: { _isTemp: true, group_id: gc.id },
   }
   chatStore.chats.unshift(temp)
   chatStore.setActiveChat(temp)
@@ -178,6 +205,7 @@ async function sendMessage() {
   }
 
   const currentAgentId = (chatStore.activeChat!.meta?.agent_id as string) || selectedAgentId.value
+  const activeGroupId = (chatStore.activeChat!.meta?.group_id as string) || currentGroupId.value || undefined
 
   await chat.sendMessage(
     text,
@@ -186,7 +214,8 @@ async function sendMessage() {
     () => chatWindowRef.value?.scrollToBottom(),
     () => chatStore.loadChats(),
     (e) => ElMessage.error(t('chat.requestFailed') + ': ' + e.message),
-    currentAgentId,
+    activeGroupId ? undefined : currentAgentId,
+    activeGroupId ?? undefined,
   )
 }
 
@@ -238,6 +267,13 @@ onMounted(async () => {
   } catch {
     // fallback to main only
     agentsList.value = [{ id: 'main', name: 'Main', description: '', is_main: true, files: [], created_at: '' }]
+  }
+
+  // Load group chats
+  try {
+    groupChats.value = await listGroupChats()
+  } catch {
+    // group chats optional
   }
 
   await chatStore.loadChats()

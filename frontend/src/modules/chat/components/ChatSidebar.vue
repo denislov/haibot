@@ -45,6 +45,22 @@
       </div>
     </div>
 
+    <!-- Group Chats section -->
+    <div v-if="groupChats.length > 0" class="group-chats-section">
+      <div class="section-label">{{ $t('chat.groupChats') }}</div>
+      <div
+        v-for="gc in groupChats"
+        :key="gc.id"
+        class="chat-item"
+        :class="{ active: activeGroupId === gc.id }"
+        @click="$emit('newGroupChatSession', gc)"
+      >
+        <div class="chat-item-content">
+          <div class="chat-item-name">{{ gc.name }}</div>
+        </div>
+      </div>
+    </div>
+
     <!-- Bottom bar: settings + theme -->
     <div class="sidebar-footer">
       <button class="footer-btn" @click="$emit('openSettings')" :title="$t('common.settings')">
@@ -61,6 +77,7 @@
 
 <script setup lang="ts">
 import type { ChatSpec } from '@/types'
+import type { GroupChatConfig } from '@/types/group_chat'
 import { useTheme } from '@/utils/useTheme'
 
 const { isDark, toggleTheme } = useTheme()
@@ -69,6 +86,8 @@ defineProps<{
   chats: ChatSpec[]
   activeChatId: string | null
   collapsed: boolean
+  groupChats?: GroupChatConfig[]
+  activeGroupId?: string | null
 }>()
 
 defineEmits<{
@@ -77,6 +96,7 @@ defineEmits<{
   selectChat: [chat: ChatSpec]
   chatAction: [cmd: string, chat: ChatSpec]
   openSettings: []
+  newGroupChatSession: [gc: GroupChatConfig]
 }>()
 
 function getPreview(chat: ChatSpec): string {
@@ -213,4 +233,18 @@ function getPreview(chat: ChatSpec): string {
 .theme-btn { margin-left: auto; padding: 7px; }
 
 :deep(.danger-item) { color: var(--error) !important; }
+
+.group-chats-section {
+  padding: 4px 6px 8px;
+  border-top: 1px solid var(--border);
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 6px 8px 4px;
+}
 </style>
