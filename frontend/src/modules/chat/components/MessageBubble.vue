@@ -9,7 +9,11 @@
 
     <!-- Assistant message -->
     <template v-else>
-      <div class="msg-assistant">
+      <!-- Agent name badge for group chat -->
+      <div v-if="message.agentName" class="agent-name-badge">
+        {{ message.agentName }}
+      </div>
+      <div class="msg-assistant" :class="{ 'group-agent': message.agentId }">
         <div v-for="(block, bi) in message.blocks" :key="bi" class="msg-block">
           <!-- Text -->
           <MarkdownBlock
@@ -153,4 +157,18 @@ function copyMessage() {
   margin-left: 2px;
 }
 @keyframes blink { 50% { opacity: 0; } }
+
+.agent-name-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--el-color-primary);
+  margin-bottom: 4px;
+  padding-left: 2px;
+  opacity: 0.85;
+}
+
+.msg-assistant.group-agent {
+  border-left: 2px solid var(--el-color-primary-light-5);
+  padding-left: 8px;
+}
 </style>
