@@ -44,6 +44,7 @@ export default {
     copied: 'Copied',
     stop: 'Stop generating',
     tagline: 'Works for you, grows with you.',
+    groupChats: 'Group Chats',
   },
   settings: {
     title: 'Settings',
@@ -129,6 +130,14 @@ export default {
       emptyState: 'No environment variables configured yet.',
       emptyKey: 'Variable name cannot be empty',
       count: '{count} variables',
+    },
+    groupChats: {
+      title: 'Group Chats',
+      create: 'New Group Chat',
+      host: 'Host Agent',
+      participants: 'Participants',
+      maxRounds: 'Max Rounds',
+      groupId: 'Group Chat ID',
     },
     crons: {
       title: 'Cron Jobs',

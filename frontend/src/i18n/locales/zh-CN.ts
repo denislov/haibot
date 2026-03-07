@@ -44,6 +44,7 @@ export default {
     copied: '已复制',
     stop: '停止生成',
     tagline: 'Works for you, grows with you.',
+    groupChats: '群聊',
   },
   settings: {
     title: '设置',
@@ -170,6 +171,14 @@ export default {
       emptyState: '尚未配置环境变量。',
       emptyKey: '变量名不能为空',
       count: '{count} 变量',
+    },
+    groupChats: {
+      title: '群聊配置',
+      create: '新建群聊',
+      host: '主持人',
+      participants: '参与者',
+      maxRounds: '最大轮次',
+      groupId: '群聊 ID',
     },
     crons: {
       title: '定时任务',

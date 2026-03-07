@@ -84,6 +84,7 @@ const navItems = computed(() => [
   { path: 'skills', label: t('settings.skills.title'), icon: 'MagicStick' },
   { path: 'envs', label: t('settings.envs.title'), icon: 'Setting' },
   { path: 'crons', label: t('settings.crons.title'), icon: 'AlarmClock' },
+  { path: 'group-chats', label: t('settings.groupChats.title'), icon: 'ChatDotRound' },
 ])
 </script>
 

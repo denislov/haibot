@@ -62,6 +62,11 @@ export default createRouter({
           name: 'settings-crons',
           component: () => import('@/modules/settings/pages/CronsSettings.vue'),
         },
+        {
+          path: 'group-chats',
+          name: 'settings-group-chats',
+          component: () => import('@/modules/settings/pages/GroupChatSettings.vue'),
+        },
       ],
     },
   ],
