@@ -177,6 +177,14 @@ html, body {
   background: transparent;
 }
 
+/* ── Chat content track (shared responsive width for ChatWindow + ChatInput) ── */
+.content-track {
+  max-width: 768px;
+  margin: 0 auto;
+}
+@media (min-width: 1200px) { .content-track { max-width: 800px; } }
+@media (min-width: 1600px) { .content-track { max-width: 860px; } }
+
 /* ── Dark mode overrides ── */
 [data-theme="dark"] .md-content code {
   color: #fb7185;

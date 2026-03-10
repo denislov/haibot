@@ -177,9 +177,17 @@ function copy(raw: string | undefined) {
   color: var(--text-1);
 }
 
-:deep(.tc-code-table .hljs-attr)    { color: #0550ae; }
-:deep(.tc-code-table .hljs-string)  { color: #cf222e; }
-:deep(.tc-code-table .hljs-number)  { color: #0a3069; }
-:deep(.tc-code-table .hljs-literal) { color: #8250df; }
+/* Light mode hljs token colors */
+:deep(.tc-code-table .hljs-attr)        { color: #0550ae; }
+:deep(.tc-code-table .hljs-string)      { color: #cf222e; }
+:deep(.tc-code-table .hljs-number)      { color: #0a3069; }
+:deep(.tc-code-table .hljs-literal)     { color: #8250df; }
 :deep(.tc-code-table .hljs-punctuation) { color: var(--text-1); }
+
+/* Dark mode hljs token colors */
+[data-theme="dark"] :deep(.tc-code-table .hljs-attr)        { color: #79c0ff; }
+[data-theme="dark"] :deep(.tc-code-table .hljs-string)      { color: #a5d6ff; }
+[data-theme="dark"] :deep(.tc-code-table .hljs-number)      { color: #79c0ff; }
+[data-theme="dark"] :deep(.tc-code-table .hljs-literal)     { color: #d2a8ff; }
+[data-theme="dark"] :deep(.tc-code-table .hljs-punctuation) { color: var(--text-1); }
 </style>

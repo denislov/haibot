@@ -27,6 +27,7 @@ export default {
     settings: '设置',
     search: '搜索',
     add: '添加',
+    copy: '复制',
   },
   chat: {
     title: '聊天',
@@ -45,6 +46,13 @@ export default {
     stop: '停止生成',
     tagline: 'Works for you, grows with you.',
     groupChats: '群聊',
+    collapseSidebar: '收起侧边栏',
+    history: '历史',
+    noHistory: '暂无会话',
+    timeToday: '今天',
+    time7days: '7 天内',
+    time30days: '30 天内',
+    selectContact: '选择一个智能体或群聊开始对话',
   },
   settings: {
     title: '设置',

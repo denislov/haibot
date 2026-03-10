@@ -156,6 +156,7 @@ class AgentRunner(Runner):
                     raise ValueError(f"Group chat '{group_id}' not found")
 
                 from ..group_chat.orchestrator import GroupChatOrchestrator
+                from agentscope.memory import InMemoryMemory
 
                 # Build agent_meta: {agent_id: {name: ...}} for all involved agents
                 all_ids = [config.host_agent_id] + config.participant_agent_ids
@@ -175,6 +176,16 @@ class AgentRunner(Runner):
                 _cfg = load_config()
                 language = getattr(getattr(_cfg, "agents", None), "language", "zh")
 
+                # Register chat before running so history is attributable
+                if self._chat_manager is not None:
+                    name = msgs[0].get_text_content()[:10] if msgs and msgs[0].get_text_content() else config.name
+                    chat = await self._chat_manager.get_or_create_chat(
+                        session_id,
+                        user_id,
+                        channel,
+                        name=name,
+                    )
+
                 orchestrator = GroupChatOrchestrator(
                     config=config,
                     agent_meta=agent_meta,
@@ -191,6 +202,17 @@ class AgentRunner(Runner):
                     channel=channel,
                 ):
                     yield msg, last
+
+                # Persist conversation history so /api/chats/{id} can return messages
+                if orchestrator.final_history:
+                    memory = InMemoryMemory()
+                    for msg in orchestrator.final_history:
+                        memory.add(msg)
+                    state = {"agent": {"memory": memory.state_dict()}}
+                    save_path = self.session._get_save_path(session_id, user_id)
+                    with open(save_path, "w", encoding="utf-8") as _f:
+                        json.dump(state, _f, ensure_ascii=False, indent=2)
+
                 return
 
             config = load_config()

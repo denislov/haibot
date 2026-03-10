@@ -47,7 +47,7 @@
 
         <!-- Action bar (copy button) — shown on hover -->
         <div v-if="!message.streaming && hasContent" class="msg-actions">
-          <button class="action-btn" :title="$t('common.copy') || 'Copy'" @click="copyMessage">
+          <button class="action-btn" :title="$t('common.copy')" @click="copyMessage">
             <el-icon v-if="!copied"><CopyDocument /></el-icon>
             <el-icon v-else><Select /></el-icon>
           </button>
@@ -117,7 +117,7 @@ function copyMessage() {
   position: relative;
 }
 
-/* Action bar — appears below last text block on hover */
+/* Action bar — appears below last text block on hover / focus */
 .msg-actions {
   display: flex;
   gap: 4px;
@@ -125,7 +125,13 @@ function copyMessage() {
   transition: opacity 0.15s;
   padding-top: 2px;
 }
-.message-row:hover .msg-actions { opacity: 1; }
+.message-row:hover .msg-actions,
+.message-row:focus-within .msg-actions { opacity: 1; }
+
+/* Touch devices: always show action bar (no hover available) */
+@media (hover: none) {
+  .msg-actions { opacity: 1; }
+}
 
 .action-btn {
   display: flex;

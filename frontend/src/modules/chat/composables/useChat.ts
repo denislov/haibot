@@ -1,16 +1,11 @@
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { streamQuery } from '@/api/chats'
 import type { DisplayMessage, DisplayBlock, ContentItem } from '@/types'
-
-function uuidv4(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
-  })
-}
+import { uuidv4 } from '@/utils/uuid'
 
 export function useChat() {
+  const { t } = useI18n()
   const displayMessages = ref<DisplayMessage[]>([])
   const streaming = ref(false)
   const inputText = ref('')
@@ -384,7 +379,7 @@ export function useChat() {
             assistantMsg.blocks.push({ id: uuidv4(), kind: 'text', text: '' })
             textBlock = assistantMsg.blocks[assistantMsg.blocks.length - 1]
           }
-          textBlock.text = (textBlock.text || '') + `\n\n**错误**: ${e.message}`
+          textBlock.text = (textBlock.text || '') + `\n\n**${t('chat.error')}**: ${e.message}`
           onError?.(e)
         }
       },

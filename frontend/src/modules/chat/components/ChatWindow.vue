@@ -1,6 +1,6 @@
 <template>
-  <div ref="messagesEl" class="chat-window">
-    <div class="chat-content-track">
+  <div ref="messagesEl" class="chat-window" @scroll.passive="onScroll">
+    <div class="chat-content-track content-track">
       <div v-if="messages.length === 0" class="chat-empty-state">
         <p>{{ $t('chat.emptyState') }}</p>
       </div>
@@ -25,19 +25,34 @@ const props = defineProps<{
 }>()
 
 const messagesEl = ref<HTMLDivElement | null>(null)
+const isNearBottom = ref(true)
+const SCROLL_THRESHOLD = 80 // px from bottom to be considered "at bottom"
 
+function onScroll() {
+  if (!messagesEl.value) return
+  const { scrollTop, scrollHeight, clientHeight } = messagesEl.value
+  isNearBottom.value = scrollHeight - scrollTop - clientHeight < SCROLL_THRESHOLD
+}
+
+/** Always scrolls to bottom — use for history loads and initial render. */
 function scrollToBottom() {
   nextTick(() => {
     if (messagesEl.value) {
       messagesEl.value.scrollTop = messagesEl.value.scrollHeight
+      isNearBottom.value = true
     }
   })
 }
 
-// Auto-scroll when messages change
+/** Only scrolls if the user hasn't scrolled up — use during streaming. */
+function scrollIfNearBottom() {
+  if (isNearBottom.value) scrollToBottom()
+}
+
+// Force-scroll when a new message turn is added (count changes)
 watch(() => props.messages.length, scrollToBottom)
 
-defineExpose({ scrollToBottom })
+defineExpose({ scrollToBottom, scrollIfNearBottom })
 </script>
 
 <style scoped>
@@ -47,21 +62,11 @@ defineExpose({ scrollToBottom })
   padding: 24px 16px;
 }
 
-/* Centered content track — responsive width like GPT */
+/* Centered content track — responsive width (breakpoints in style.css) */
 .chat-content-track {
-  max-width: 768px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 24px;
-}
-
-/* Responsive: wider margins on larger screens */
-@media (min-width: 1200px) {
-  .chat-content-track { max-width: 800px; }
-}
-@media (min-width: 1600px) {
-  .chat-content-track { max-width: 860px; }
 }
 
 .chat-empty-state {

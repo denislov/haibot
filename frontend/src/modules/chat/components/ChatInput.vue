@@ -1,6 +1,6 @@
 <template>
   <div class="input-area">
-    <div class="input-track">
+    <div class="input-track content-track">
       <div class="input-box-wrap">
         <textarea
           ref="textareaEl"
@@ -72,18 +72,8 @@ defineExpose({ focus: () => textareaEl.value?.focus() })
   background: transparent;
 }
 
-/* Same centered track as ChatWindow */
-.input-track {
-  max-width: 768px;
-  margin: 0 auto;
-}
-
-@media (min-width: 1200px) {
-  .input-track { max-width: 800px; }
-}
-@media (min-width: 1600px) {
-  .input-track { max-width: 860px; }
-}
+/* Same centered track as ChatWindow — breakpoints in style.css */
+.input-track { }
 
 .input-box-wrap {
   position: relative;

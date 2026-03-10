@@ -22,17 +22,7 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       proxy: {
-        "/api/agent": "http://127.0.0.1:8088",
-        "/api/chats": "http://127.0.0.1:8088",
-        "/api/config": "http://127.0.0.1:8088",
-        "/api/cron": "http://127.0.0.1:8088",
-        "/api/models": "http://127.0.0.1:8088",
-        "/api/skills": "http://127.0.0.1:8088",
-        "/api/envs": "http://127.0.0.1:8088",
-        "/api/workspace": "http://127.0.0.1:8088",
-        "/api/console": "http://127.0.0.1:8088",
-        "/api/version": "http://127.0.0.1:8088",
-        "/api/mcp": "http://127.0.0.1:8088",
+        "/api": "http://127.0.0.1:8088",
       },
     },
     build: {

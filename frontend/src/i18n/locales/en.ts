@@ -27,6 +27,7 @@ export default {
     settings: 'Settings',
     search: 'Search',
     add: 'Add',
+    copy: 'Copy',
   },
   chat: {
     title: 'Chat',
@@ -45,6 +46,13 @@ export default {
     stop: 'Stop generating',
     tagline: 'Works for you, grows with you.',
     groupChats: 'Group Chats',
+    collapseSidebar: 'Collapse sidebar',
+    history: 'History',
+    noHistory: 'No conversations yet',
+    timeToday: 'Today',
+    time7days: 'Previous 7 days',
+    time30days: 'Previous 30 days',
+    selectContact: 'Select an agent or group chat to start',
   },
   settings: {
     title: 'Settings',

@@ -145,6 +145,7 @@ class GroupChatOrchestrator:
         config = self._config
         participant_info = self._get_participant_info()
         history: list[Msg] = [user_msg]
+        self.final_history: list[Msg] = []
 
         for round_index in range(config.max_rounds):
             # ── 1. Host turn ──────────────────────────────────────────────
@@ -210,4 +211,5 @@ class GroupChatOrchestrator:
                     participant_finals.append(msg)
 
             history.extend(participant_finals)
+        self.final_history = list(history)
         # Stream ends naturally — no synthetic group_done event needed
