@@ -151,7 +151,7 @@ class VoiceChannelConfig(BaseChannelConfig):
     tts_voice: str = "en-US-Journey-D"
     stt_provider: str = "deepgram"
     language: str = "en-US"
-    welcome_greeting: str = "Hi! This is CoPaw. How can I help you?"
+    welcome_greeting: str = "Hi! This is HaiBot. How can I help you?"
 
 
 class XiaoYiConfig(BaseChannelConfig):
@@ -915,9 +915,9 @@ def load_agent_config(agent_id: str) -> AgentProfileConfig:
     with open(agent_config_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    # Normalize legacy ~/.copaw-bound paths to current WORKING_DIR.
-    # This keeps COPAW_WORKING_DIR effective even if existing agent.json
-    # contains older hard-coded paths like "~/.copaw/media".
+    # Normalize legacy ~/.haibot-bound paths to current WORKING_DIR.
+    # This keeps HAIBOT_WORKING_DIR effective even if existing agent.json
+    # contains older hard-coded paths like "~/.haibot/media".
     try:
         from .utils import _normalize_working_dir_bound_paths
 
@@ -998,7 +998,7 @@ def migrate_legacy_config_to_multi_agent() -> bool:
     default_agent_config = AgentProfileConfig(
         id="default",
         name="Default Agent",
-        description="Default CoPaw agent",
+        description="Default HaiBot agent",
         workspace_dir=str(default_workspace),
         channels=config.channels if config.channels else None,
         mcp=config.mcp if config.mcp else None,
@@ -1037,9 +1037,9 @@ def migrate_legacy_config_to_multi_agent() -> bool:
         )
 
     # Migrate existing workspace files from legacy default working dir.
-    # When COPAW_WORKING_DIR is customized, historical data may still exist
-    # under "~/.copaw".
-    old_workspace = Path("~/.copaw").expanduser().resolve()
+    # When HAIBOT_WORKING_DIR is customized, historical data may still exist
+    # under "~/.haibot".
+    old_workspace = Path("~/.haibot").expanduser().resolve()
 
     # Move sessions, memory, and other workspace files
     for item_name in ["sessions", "memory", "jobs.json"]:

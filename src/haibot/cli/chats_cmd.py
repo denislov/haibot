@@ -31,11 +31,11 @@ def chats_group() -> None:
 
     \b
     Common examples:
-      copaw chats list                    # List all chats
-      copaw chats list --user-id alice    # Filter by user
-      copaw chats get <chat_id>           # View details
-      copaw chats create --session-id s1 --user-id u1
-      copaw chats delete <chat_id>        # Delete a chat
+      haibot chats list                    # List all chats
+      haibot chats list --user-id alice    # Filter by user
+      haibot chats get <chat_id>           # View details
+      haibot chats create --session-id s1 --user-id u1
+      haibot chats delete <chat_id>        # Delete a chat
     """
 
 
@@ -72,10 +72,10 @@ def list_chats(
 
     \b
     Examples:
-      copaw chats list
-      copaw chats list --user-id alice
-      copaw chats list --channel discord
-      copaw chats list --user-id alice --channel discord
+      haibot chats list
+      haibot chats list --user-id alice
+      haibot chats list --channel discord
+      haibot chats list --user-id alice --channel discord
     """
     base_url = _base_url(ctx, base_url)
     params: dict[str, str] = {}
@@ -108,11 +108,11 @@ def get_chat(
     """View details of a specific chat (including message history).
 
     \b
-    CHAT_ID  Chat UUID, obtainable via `copaw chats list`.
+    CHAT_ID  Chat UUID, obtainable via `haibot chats list`.
 
     \b
     Examples:
-      copaw chats get 823845fe-dd13-43c2-ab8b-d05870602fd8
+      haibot chats get 823845fe-dd13-43c2-ab8b-d05870602fd8
     """
     base_url = _base_url(ctx, base_url)
     with client(base_url) as c:
@@ -179,14 +179,14 @@ def create_chat(
 
     \b
     Inline creation examples:
-      copaw chats create --session-id "discord:alice" \\
+      haibot chats create --session-id "discord:alice" \\
         --user-id alice --name "My Chat"
-      copaw chats create --session-id s1 --user-id u1 \\
+      haibot chats create --session-id s1 --user-id u1 \\
         --channel imessage
 
     \b
     JSON file creation example:
-      copaw chats create -f chat.json
+      haibot chats create -f chat.json
     """
     base_url = _base_url(ctx, base_url)
     if file_ is not None:
@@ -235,11 +235,11 @@ def update_chat(
     """Update chat name.
 
     \b
-    CHAT_ID  Chat UUID, obtainable via `copaw chats list`.
+    CHAT_ID  Chat UUID, obtainable via `haibot chats list`.
 
     \b
     Examples:
-      copaw chats update <chat_id> --name "Renamed Chat"
+      haibot chats update <chat_id> --name "Renamed Chat"
     """
     base_url = _base_url(ctx, base_url)
     headers = {"X-Agent-Id": agent_id}
@@ -283,11 +283,11 @@ def delete_chat(
     Only deletes Chat metadata; does not clear Redis session state.
 
     \b
-    CHAT_ID  Chat UUID, obtainable via `copaw chats list`.
+    CHAT_ID  Chat UUID, obtainable via `haibot chats list`.
 
     \b
     Examples:
-      copaw chats delete 823845fe-dd13-43c2-ab8b-d05870602fd8
+      haibot chats delete 823845fe-dd13-43c2-ab8b-d05870602fd8
     """
     base_url = _base_url(ctx, base_url)
     with client(base_url) as c:

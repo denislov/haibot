@@ -54,7 +54,7 @@ async def login(req: LoginRequest):
 @router.post("/register")
 async def register(req: RegisterRequest):
     """Register the single user account (only allowed once)."""
-    env_flag = os.environ.get("COPAW_AUTH_ENABLED", "").strip().lower()
+    env_flag = os.environ.get("HAIBOT_AUTH_ENABLED", "").strip().lower()
     if env_flag not in ("true", "1", "yes"):
         raise HTTPException(
             status_code=403,

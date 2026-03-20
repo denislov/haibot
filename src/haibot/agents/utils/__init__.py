@@ -26,7 +26,7 @@ from .message_processing import (
 from .setup_utils import copy_md_files
 
 # Token counting
-from .copaw_token_counter import get_copaw_token_counter
+from .haibot_token_counter import get_haibot_token_counter
 
 # Tool message utilities
 from .tool_message_utils import (
@@ -49,7 +49,7 @@ __all__ = [
     # Setup utilities
     "copy_md_files",
     # Token counting
-    "get_copaw_token_counter",
+    "get_haibot_token_counter",
     # Tool message utilities
     "_dedup_tool_blocks",
     "_remove_invalid_tool_blocks",

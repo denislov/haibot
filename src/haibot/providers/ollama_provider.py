@@ -13,7 +13,7 @@ except ImportError:
 
 from agentscope.model import ChatModelBase
 
-from copaw.providers.provider import ModelInfo, Provider
+from haibot.providers.provider import ModelInfo, Provider
 
 
 class OllamaProvider(Provider):
@@ -34,8 +34,8 @@ class OllamaProvider(Provider):
             raise ImportError(
                 "The 'ollama' Python package is required. You may have "
                 "installed Ollama via their CLI or desktop app, but you "
-                "also need the Python SDK to manage models from CoPaw. "
-                "Please install it with: pip install 'copaw[ollama]'",
+                "also need the Python SDK to manage models from HaiBot. "
+                "Please install it with: pip install 'haibot[ollama]'",
             )
         return ollama.AsyncClient(host=self.base_url, timeout=timeout)
 

@@ -371,8 +371,8 @@ def ensure_skills_initialized(workspace_dir: Path) -> None:
         workspace_dir: Workspace directory path.
 
     Logs a warning if no skills are found, or info about loaded skills.
-    Skills should be configured via `copaw init` or
-    `copaw skills config`.
+    Skills should be configured via `haibot init` or
+    `haibot skills config`.
     """
     active_skills = get_active_skills_dir(workspace_dir)
     available = list_available_skills(workspace_dir)
@@ -380,7 +380,7 @@ def ensure_skills_initialized(workspace_dir: Path) -> None:
     if not active_skills.exists() or not available:
         logger.warning(
             "No skills found in active_skills directory. "
-            "Run 'copaw init' or 'copaw skills config' "
+            "Run 'haibot init' or 'haibot skills config' "
             "to configure skills.",
         )
     else:
@@ -1022,7 +1022,7 @@ class SkillService:
         tmp_dir: Path | None = None
         try:
             tmp_dir = Path(
-                tempfile.mkdtemp(prefix="copaw_skill_upload_"),
+                tempfile.mkdtemp(prefix="haibot_skill_upload_"),
             )
             _extract_and_validate_zip(data, tmp_dir)
 

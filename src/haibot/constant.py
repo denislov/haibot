@@ -70,14 +70,14 @@ class EnvVarLoader:
 
 
 WORKING_DIR = (
-    Path(EnvVarLoader.get_str("COPAW_WORKING_DIR", "~/.copaw"))
+    Path(EnvVarLoader.get_str("HAIBOT_WORKING_DIR", "~/.haibot"))
     .expanduser()
     .resolve()
 )
 SECRET_DIR = (
     Path(
         EnvVarLoader.get_str(
-            "COPAW_SECRET_DIR",
+            "HAIBOT_SECRET_DIR",
             f"{WORKING_DIR}.secret",
         ),
     )
@@ -88,41 +88,41 @@ SECRET_DIR = (
 # Default media directory for channels (cross-platform)
 DEFAULT_MEDIA_DIR = WORKING_DIR / "media"
 
-JOBS_FILE = EnvVarLoader.get_str("COPAW_JOBS_FILE", "jobs.json")
+JOBS_FILE = EnvVarLoader.get_str("HAIBOT_JOBS_FILE", "jobs.json")
 
-CHATS_FILE = EnvVarLoader.get_str("COPAW_CHATS_FILE", "chats.json")
+CHATS_FILE = EnvVarLoader.get_str("HAIBOT_CHATS_FILE", "chats.json")
 
 TOKEN_USAGE_FILE = EnvVarLoader.get_str(
-    "COPAW_TOKEN_USAGE_FILE",
+    "HAIBOT_TOKEN_USAGE_FILE",
     "token_usage.json",
 )
 
-CONFIG_FILE = EnvVarLoader.get_str("COPAW_CONFIG_FILE", "config.json")
+CONFIG_FILE = EnvVarLoader.get_str("HAIBOT_CONFIG_FILE", "config.json")
 
-HEARTBEAT_FILE = EnvVarLoader.get_str("COPAW_HEARTBEAT_FILE", "HEARTBEAT.md")
+HEARTBEAT_FILE = EnvVarLoader.get_str("HAIBOT_HEARTBEAT_FILE", "HEARTBEAT.md")
 HEARTBEAT_DEFAULT_EVERY = "6h"
 HEARTBEAT_DEFAULT_TARGET = "main"
 HEARTBEAT_TARGET_LAST = "last"
 
 # Debug history file for /dump_history and /load_history commands
 DEBUG_HISTORY_FILE = EnvVarLoader.get_str(
-    "COPAW_DEBUG_HISTORY_FILE",
+    "HAIBOT_DEBUG_HISTORY_FILE",
     "debug_history.jsonl",
 )
 MAX_LOAD_HISTORY_COUNT = 10000
 
 # Env key for app log level (used by CLI and app load for reload child).
-LOG_LEVEL_ENV = "COPAW_LOG_LEVEL"
+LOG_LEVEL_ENV = "HAIBOT_LOG_LEVEL"
 
 # Env to indicate running inside a container (e.g. Docker). Set to 1/true/yes.
 RUNNING_IN_CONTAINER = EnvVarLoader.get_bool(
-    "COPAW_RUNNING_IN_CONTAINER",
+    "HAIBOT_RUNNING_IN_CONTAINER",
     False,
 )
 
 # Timeout in seconds for checking if a provider is reachable.
 MODEL_PROVIDER_CHECK_TIMEOUT = EnvVarLoader.get_float(
-    "COPAW_MODEL_PROVIDER_CHECK_TIMEOUT",
+    "HAIBOT_MODEL_PROVIDER_CHECK_TIMEOUT",
     5.0,
     min_value=0,
     allow_inf=False,
@@ -133,12 +133,12 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH_ENV = "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"
 
 # When True, expose /docs, /redoc, /openapi.json
 # (dev only; keep False in prod).
-DOCS_ENABLED = EnvVarLoader.get_bool("COPAW_OPENAPI_DOCS", False)
+DOCS_ENABLED = EnvVarLoader.get_bool("HAIBOT_OPENAPI_DOCS", False)
 
 # Memory directory
 MEMORY_DIR = WORKING_DIR / "memory"
 
-# Custom channel modules (installed via `copaw channels install`); manager
+# Custom channel modules (installed via `haibot channels install`); manager
 # loads BaseChannel subclasses from here.
 CUSTOM_CHANNELS_DIR = WORKING_DIR / "custom_channels"
 
@@ -146,14 +146,14 @@ CUSTOM_CHANNELS_DIR = WORKING_DIR / "custom_channels"
 MODELS_DIR = WORKING_DIR / "models"
 
 MEMORY_COMPACT_KEEP_RECENT = EnvVarLoader.get_int(
-    "COPAW_MEMORY_COMPACT_KEEP_RECENT",
+    "HAIBOT_MEMORY_COMPACT_KEEP_RECENT",
     3,
     min_value=0,
 )
 
 # Memory compaction configuration
 MEMORY_COMPACT_RATIO = EnvVarLoader.get_float(
-    "COPAW_MEMORY_COMPACT_RATIO",
+    "HAIBOT_MEMORY_COMPACT_RATIO",
     0.7,
     min_value=0,
     allow_inf=False,
@@ -165,25 +165,25 @@ DASHSCOPE_BASE_URL = EnvVarLoader.get_str(
 )
 
 # CORS configuration — comma-separated list of allowed origins for dev mode.
-# Example: COPAW_CORS_ORIGINS="http://localhost:5173,http://127.0.0.1:5173"
+# Example: HAIBOT_CORS_ORIGINS="http://localhost:5173,http://127.0.0.1:5173"
 # When unset, CORS middleware is not applied.
-CORS_ORIGINS = EnvVarLoader.get_str("COPAW_CORS_ORIGINS", "").strip()
+CORS_ORIGINS = EnvVarLoader.get_str("HAIBOT_CORS_ORIGINS", "").strip()
 
 # LLM API retry configuration
 LLM_MAX_RETRIES = EnvVarLoader.get_int(
-    "COPAW_LLM_MAX_RETRIES",
+    "HAIBOT_LLM_MAX_RETRIES",
     3,
     min_value=0,
 )
 
 LLM_BACKOFF_BASE = EnvVarLoader.get_float(
-    "COPAW_LLM_BACKOFF_BASE",
+    "HAIBOT_LLM_BACKOFF_BASE",
     1.0,
     min_value=0.1,
 )
 
 LLM_BACKOFF_CAP = EnvVarLoader.get_float(
-    "COPAW_LLM_BACKOFF_CAP",
+    "HAIBOT_LLM_BACKOFF_CAP",
     10.0,
     min_value=0.5,
 )
@@ -192,7 +192,7 @@ LLM_BACKOFF_CAP = EnvVarLoader.get_float(
 try:
     TOOL_GUARD_APPROVAL_TIMEOUT_SECONDS = max(
         float(
-            os.environ.get("COPAW_TOOL_GUARD_APPROVAL_TIMEOUT_SECONDS", "600"),
+            os.environ.get("HAIBOT_TOOL_GUARD_APPROVAL_TIMEOUT_SECONDS", "600"),
         ),
         1.0,
     )

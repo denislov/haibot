@@ -11,7 +11,7 @@ from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 
-from copaw.providers.provider import ModelInfo, Provider
+from haibot.providers.provider import ModelInfo, Provider
 
 
 class GeminiProvider(Provider):

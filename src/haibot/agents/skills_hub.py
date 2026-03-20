@@ -68,7 +68,7 @@ HTTP_READ_CHUNK_BYTES = 64 * 1024
 
 
 def _hub_http_timeout() -> float:
-    raw = os.environ.get("COPAW_SKILLS_HUB_HTTP_TIMEOUT", "15")
+    raw = os.environ.get("HAIBOT_SKILLS_HUB_HTTP_TIMEOUT", "15")
     try:
         return max(3.0, float(raw))
     except Exception:
@@ -76,7 +76,7 @@ def _hub_http_timeout() -> float:
 
 
 def _hub_http_retries() -> int:
-    raw = os.environ.get("COPAW_SKILLS_HUB_HTTP_RETRIES", "3")
+    raw = os.environ.get("HAIBOT_SKILLS_HUB_HTTP_RETRIES", "3")
     try:
         return max(0, int(raw))
     except Exception:
@@ -84,7 +84,7 @@ def _hub_http_retries() -> int:
 
 
 def _hub_http_backoff_base() -> float:
-    raw = os.environ.get("COPAW_SKILLS_HUB_HTTP_BACKOFF_BASE", "0.8")
+    raw = os.environ.get("HAIBOT_SKILLS_HUB_HTTP_BACKOFF_BASE", "0.8")
     try:
         return max(0.1, float(raw))
     except Exception:
@@ -92,7 +92,7 @@ def _hub_http_backoff_base() -> float:
 
 
 def _hub_http_backoff_cap() -> float:
-    raw = os.environ.get("COPAW_SKILLS_HUB_HTTP_BACKOFF_CAP", "6")
+    raw = os.environ.get("HAIBOT_SKILLS_HUB_HTTP_BACKOFF_CAP", "6")
     try:
         return max(0.5, float(raw))
     except Exception:
@@ -129,33 +129,33 @@ def _with_cancel_checker(checker: Any | None):
 
 
 def _hub_base_url() -> str:
-    return os.environ.get("COPAW_SKILLS_HUB_BASE_URL", "https://clawhub.ai")
+    return os.environ.get("HAIBOT_SKILLS_HUB_BASE_URL", "https://clawhub.ai")
 
 
 def _hub_search_path() -> str:
     return os.environ.get(
-        "COPAW_SKILLS_HUB_SEARCH_PATH",
+        "HAIBOT_SKILLS_HUB_SEARCH_PATH",
         "/api/v1/search",
     )
 
 
 def _hub_version_path() -> str:
     return os.environ.get(
-        "COPAW_SKILLS_HUB_VERSION_PATH",
+        "HAIBOT_SKILLS_HUB_VERSION_PATH",
         "/api/v1/skills/{slug}/versions/{version}",
     )
 
 
 def _hub_detail_path() -> str:
     return os.environ.get(
-        "COPAW_SKILLS_HUB_DETAIL_PATH",
+        "HAIBOT_SKILLS_HUB_DETAIL_PATH",
         "/api/v1/skills/{slug}",
     )
 
 
 def _hub_file_path() -> str:
     return os.environ.get(
-        "COPAW_SKILLS_HUB_FILE_PATH",
+        "HAIBOT_SKILLS_HUB_FILE_PATH",
         "/api/v1/skills/{slug}/file",
     )
 
@@ -169,7 +169,7 @@ def _build_request(full_url: str, accept: str) -> Request:
         full_url,
         headers={
             "Accept": accept,
-            "User-Agent": "copaw-skills-hub/1.0",
+            "User-Agent": "haibot-skills-hub/1.0",
         },
     )
     parsed = urlparse(full_url)

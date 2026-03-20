@@ -16,7 +16,7 @@ from ..config import load_config  # pylint: disable=no-name-in-module
 from ..config.utils import get_config_path
 from ..constant import DOCS_ENABLED, LOG_LEVEL_ENV, CORS_ORIGINS, WORKING_DIR
 from ..__version__ import __version__
-from ..utils.logging import setup_logger, add_copaw_file_handler
+from ..utils.logging import setup_logger, add_haibot_file_handler
 from .auth import AuthMiddleware
 from .routers import router as api_router, create_agent_scoped_router
 from .routers.agent_scoped import AgentContextMiddleware
@@ -150,7 +150,7 @@ async def lifespan(
     app: FastAPI,
 ):  # pylint: disable=too-many-statements,too-many-branches
     startup_start_time = time.time()
-    add_copaw_file_handler(WORKING_DIR / "copaw.log")
+    add_haibot_file_handler(WORKING_DIR / "haibot.log")
 
     # Auto-register admin from env vars (for automated deployments)
     from .auth import auto_register_from_env
@@ -262,21 +262,21 @@ if CORS_ORIGINS:
     )
 
 
-# Console static dir: env, or copaw package data (console), or cwd.
-_CONSOLE_STATIC_ENV = "COPAW_CONSOLE_STATIC_DIR"
+# Console static dir: env, or haibot package data (console), or cwd.
+_CONSOLE_STATIC_ENV = "HAIBOT_CONSOLE_STATIC_DIR"
 
 
 def _resolve_console_static_dir() -> str:
     if os.environ.get(_CONSOLE_STATIC_ENV):
         return os.environ[_CONSOLE_STATIC_ENV]
-    # Shipped dist lives in copaw package as static data (not a Python pkg).
+    # Shipped dist lives in haibot package as static data (not a Python pkg).
     pkg_dir = Path(__file__).resolve().parent.parent
     candidate = pkg_dir / "console"
     if candidate.is_dir() and (candidate / "index.html").exists():
         return str(candidate)
     # the following code can be removed after next release,
-    # because the console will be output to copaw's
-    # `src/copaw/console/` directory directly by vite.
+    # because the console will be output to haibot's
+    # `src/haibot/console/` directory directly by vite.
     cwd = Path(os.getcwd())
     for subdir in ("console/dist", "console_dist"):
         candidate = cwd / subdir
@@ -298,10 +298,10 @@ def read_root():
         return FileResponse(_CONSOLE_INDEX)
     return {
         "message": (
-            "CoPaw Web Console is not available. "
-            "If you installed CoPaw from source code, please run "
-            "`npm ci && npm run build` in CoPaw's `console/` "
-            "directory, and restart CoPaw to enable the "
+            "HaiBot Web Console is not available. "
+            "If you installed HaiBot from source code, please run "
+            "`npm ci && npm run build` in HaiBot's `console/` "
+            "directory, and restart HaiBot to enable the "
             "web console."
         ),
     }
@@ -309,7 +309,7 @@ def read_root():
 
 @app.get("/api/version")
 def get_version():
-    """Return the current CoPaw version."""
+    """Return the current HaiBot version."""
     return {"version": __version__}
 
 
@@ -355,16 +355,16 @@ if os.path.isdir(_CONSOLE_STATIC_DIR):
             return FileResponse(f, media_type="image/png")
         raise HTTPException(status_code=404, detail="Not Found")
 
-    @app.get("/copaw-symbol.svg")
+    @app.get("/haibot-symbol.svg")
     def _console_icon():
-        f = _console_path / "copaw-symbol.svg"
+        f = _console_path / "haibot-symbol.svg"
         if f.is_file():
             return FileResponse(f, media_type="image/svg+xml")
         raise HTTPException(status_code=404, detail="Not Found")
 
-    @app.get("/copaw-dark.png")
+    @app.get("/haibot-dark.png")
     def _console_dark_icon():
-        f = _console_path / "copaw-dark.png"
+        f = _console_path / "haibot-dark.png"
         if f.is_file():
             return FileResponse(f, media_type="image/png")
         raise HTTPException(status_code=404, detail="Not Found")

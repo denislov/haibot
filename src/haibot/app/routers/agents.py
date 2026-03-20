@@ -424,7 +424,7 @@ def _initialize_agent_workspace(  # pylint: disable=too-many-branches
     workspace_dir: Path,
     agent_config: AgentProfileConfig,  # pylint: disable=unused-argument
 ) -> None:
-    """Initialize agent workspace (similar to copaw init --defaults).
+    """Initialize agent workspace (similar to haibot init --defaults).
 
     Args:
         workspace_dir: Path to agent workspace

@@ -12,7 +12,7 @@ from typing import Optional
 import click
 
 from .process_utils import (
-    _is_copaw_wrapper_process,
+    _is_haibot_wrapper_process,
     _process_table,
     _windows_process_snapshot,
 )
@@ -96,7 +96,7 @@ def _find_frontend_dev_pids() -> set[int]:
         if "vite" in lowered and console_dir in lowered:
             matches.add(pid)
             continue
-        if "copaw-console" in lowered and (
+        if "haibot-console" in lowered and (
             "npm" in lowered
             or "pnpm" in lowered
             or "yarn" in lowered
@@ -107,11 +107,11 @@ def _find_frontend_dev_pids() -> set[int]:
 
 
 def _find_desktop_wrapper_pids() -> set[int]:
-    """Find `copaw desktop` wrapper processes for this project."""
+    """Find `haibot desktop` wrapper processes for this project."""
     matches: set[int] = set()
     patterns = (
-        " -m copaw desktop",
-        " copaw desktop",
+        " -m haibot desktop",
+        " haibot desktop",
         "__main__.py desktop",
     )
     for pid, command in _process_table():
@@ -122,7 +122,7 @@ def _find_desktop_wrapper_pids() -> set[int]:
 
 
 def _find_windows_wrapper_ancestor_pids(pids: set[int]) -> set[int]:
-    """Find CoPaw wrapper/supervisor ancestors for Windows backend PIDs."""
+    """Find HaiBot wrapper/supervisor ancestors for Windows backend PIDs."""
     if sys.platform != "win32" or not pids:
         return set()
 
@@ -145,7 +145,7 @@ def _find_windows_wrapper_ancestor_pids(pids: set[int]) -> set[int]:
             if parent_info is None:
                 break
 
-            if _is_copaw_wrapper_process(parent_info[1], parent_info[2]):
+            if _is_haibot_wrapper_process(parent_info[1], parent_info[2]):
                 matches.add(parent_pid)
 
             current_pid = parent_pid
@@ -300,7 +300,7 @@ def _stop_pid_set(pids: set[int]) -> tuple[list[int], list[int]]:
     return stopped, failed
 
 
-@click.command("shutdown", help="Force stop the running CoPaw app processes.")
+@click.command("shutdown", help="Force stop the running HaiBot app processes.")
 @click.option(
     "--port",
     default=None,
@@ -309,9 +309,9 @@ def _stop_pid_set(pids: set[int]) -> tuple[list[int], list[int]]:
 )
 @click.pass_context
 def shutdown_cmd(ctx: click.Context, port: Optional[int]) -> None:
-    """Stop the running CoPaw app processes.
+    """Stop the running HaiBot app processes.
 
-    `copaw app` only starts the backend process. The web console is normally
+    `haibot app` only starts the backend process. The web console is normally
     static files served by that backend. During frontend development, a
     separate Vite process may also be running from the repository's
     `console/` directory, and this command will stop that as well.
@@ -342,7 +342,7 @@ def shutdown_cmd(ctx: click.Context, port: Optional[int]) -> None:
     all_targets = backend_pids | frontend_pids | desktop_pids | wrapper_pids
     if not all_targets:
         raise click.ClickException(
-            "No running CoPaw backend/frontend process was found.",
+            "No running HaiBot backend/frontend process was found.",
         )
 
     wrapper_stopped, wrapper_failed = _stop_pid_set(wrapper_pids)
@@ -368,7 +368,7 @@ def shutdown_cmd(ctx: click.Context, port: Optional[int]) -> None:
 
     if stopped:
         click.echo(
-            "Stopped CoPaw processes: "
+            "Stopped HaiBot processes: "
             + ", ".join(str(pid) for pid in sorted(stopped)),
         )
     if failed:

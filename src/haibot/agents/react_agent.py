@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""CoPaw Agent - Main agent implementation.
+"""HaiBot Agent - Main agent implementation.
 
-This module provides the main CoPawAgent class built on ReActAgent,
+This module provides the main HaiBotAgent class built on ReActAgent,
 with integrated tools, skills, and memory management.
 """
 
@@ -60,8 +60,8 @@ logger = logging.getLogger(__name__)
 NamesakeStrategy = Literal["override", "skip", "raise", "rename"]
 
 
-class CoPawAgent(ToolGuardMixin, ReActAgent):
-    """CoPaw Agent with integrated tools, skills, and memory management.
+class HaiBotAgent(ToolGuardMixin, ReActAgent):
+    """HaiBot Agent with integrated tools, skills, and memory management.
 
     This agent extends ReActAgent with:
     - Built-in tools (shell, file operations, browser, etc.)
@@ -74,7 +74,7 @@ class CoPawAgent(ToolGuardMixin, ReActAgent):
     MRO note
     ~~~~~~~~
     ``ToolGuardMixin`` overrides ``_acting`` and ``_reasoning`` via
-    Python's MRO: CoPawAgent → ToolGuardMixin → ReActAgent.  If you
+    Python's MRO: HaiBotAgent → ToolGuardMixin → ReActAgent.  If you
     add a ``_acting`` or ``_reasoning`` override in this class, you
     **must** call ``super()._acting(...)`` / ``super()._reasoning(...)``
     so the guard interception remains active.
@@ -91,7 +91,7 @@ class CoPawAgent(ToolGuardMixin, ReActAgent):
         namesake_strategy: NamesakeStrategy = "skip",
         workspace_dir: Path | None = None,
     ):
-        """Initialize CoPawAgent.
+        """Initialize HaiBotAgent.
 
         Args:
             agent_config: Agent profile configuration containing all settings
@@ -512,7 +512,7 @@ class CoPawAgent(ToolGuardMixin, ReActAgent):
     @staticmethod
     def _rebuild_mcp_client(client: Any) -> Any | None:
         """Rebuild a fresh MCP client instance from stored config metadata."""
-        rebuild_info = getattr(client, "_copaw_rebuild_info", None)
+        rebuild_info = getattr(client, "_haibot_rebuild_info", None)
         if not isinstance(rebuild_info, dict):
             return None
 
@@ -528,7 +528,7 @@ class CoPawAgent(ToolGuardMixin, ReActAgent):
                     env=rebuild_info.get("env", {}),
                     cwd=rebuild_info.get("cwd"),
                 )
-                setattr(rebuilt_client, "_copaw_rebuild_info", rebuild_info)
+                setattr(rebuilt_client, "_haibot_rebuild_info", rebuild_info)
                 return rebuilt_client
 
             raw_headers = rebuild_info.get("headers") or {}
@@ -543,7 +543,7 @@ class CoPawAgent(ToolGuardMixin, ReActAgent):
                 url=rebuild_info.get("url"),
                 headers=headers,
             )
-            setattr(rebuilt_client, "_copaw_rebuild_info", rebuild_info)
+            setattr(rebuilt_client, "_haibot_rebuild_info", rebuild_info)
             return rebuilt_client
         except Exception:  # pylint: disable=broad-except
             return None

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=too-many-branches
-"""Memory Manager for CoPaw agents.
+"""Memory Manager for HaiBot agents.
 
 Extends ReMeLight to provide memory management capabilities including:
 - Message compaction with configurable ratio
@@ -16,10 +16,10 @@ from agentscope.formatter import FormatterBase
 from agentscope.message import Msg, TextBlock
 from agentscope.model import ChatModelBase
 from agentscope.tool import Toolkit, ToolResponse
-from copaw.agents.model_factory import create_model_and_formatter
-from copaw.agents.tools import read_file, write_file, edit_file
-from copaw.agents.utils import get_copaw_token_counter
-from copaw.config.config import load_agent_config
+from haibot.agents.model_factory import create_model_and_formatter
+from haibot.agents.tools import read_file, write_file, edit_file
+from haibot.agents.utils import get_haibot_token_counter
+from haibot.config.config import load_agent_config
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ except ImportError as e:
 
 
 class MemoryManager(ReMeLight):
-    """Memory manager that extends ReMeLight for CoPaw agents.
+    """Memory manager that extends ReMeLight for HaiBot agents.
 
     This class provides memory management capabilities including:
     - Memory compaction for long conversations via compact_memory()
@@ -123,7 +123,7 @@ class MemoryManager(ReMeLight):
             default_embedding_model_config=emb_config,
             default_file_store_config={
                 "backend": memory_backend,
-                "store_name": "copaw",
+                "store_name": "haibot",
                 "vector_enabled": vector_enabled,
                 "fts_enabled": fts_enabled,
             },
@@ -214,7 +214,7 @@ class MemoryManager(ReMeLight):
         self.prepare_model_formatter()
 
         agent_config = load_agent_config(self.agent_id)
-        token_counter = get_copaw_token_counter(agent_config)
+        token_counter = get_haibot_token_counter(agent_config)
 
         return await super().compact_memory(
             messages=messages,
@@ -243,7 +243,7 @@ class MemoryManager(ReMeLight):
         self.prepare_model_formatter()
 
         agent_config = load_agent_config(self.agent_id)
-        token_counter = get_copaw_token_counter(agent_config)
+        token_counter = get_haibot_token_counter(agent_config)
 
         return await super().summary_memory(
             messages=messages,
@@ -302,7 +302,7 @@ class MemoryManager(ReMeLight):
             The in-memory memory content with token counting support
         """
         agent_config = load_agent_config(self.agent_id)
-        token_counter = get_copaw_token_counter(agent_config)
+        token_counter = get_haibot_token_counter(agent_config)
 
         return super().get_in_memory_memory(
             as_token_counter=token_counter,

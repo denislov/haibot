@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tool-guard mixin for CoPawAgent.
+"""Tool-guard mixin for HaiBotAgent.
 
 Provides ``_acting`` and ``_reasoning`` overrides that intercept
 sensitive tool calls before execution, implementing the deny /
@@ -35,8 +35,8 @@ class ToolGuardMixin:
 
     def _init_tool_guard(self) -> None:
         """Lazy-init tool-guard components (called once)."""
-        from copaw.security.tool_guard.engine import get_guard_engine
-        from copaw.app.approvals import get_approval_service
+        from haibot.security.tool_guard.engine import get_guard_engine
+        from haibot.app.approvals import get_approval_service
 
         self._tool_guard_engine = get_guard_engine()
         self._tool_guard_approval_service = get_approval_service()
@@ -159,7 +159,7 @@ class ToolGuardMixin:
 
                     result = engine.guard(tool_name, tool_input)
                     if result is not None and result.findings:
-                        from copaw.security.tool_guard.utils import (
+                        from haibot.security.tool_guard.utils import (
                             log_findings,
                         )
 
@@ -192,7 +192,7 @@ class ToolGuardMixin:
     ) -> dict | None:
         """Auto-deny a tool call without offering approval."""
         from agentscope.message import ToolResultBlock
-        from copaw.security.tool_guard.approval import (
+        from haibot.security.tool_guard.approval import (
             format_findings_summary,
         )
 
@@ -242,7 +242,7 @@ class ToolGuardMixin:
     ) -> dict | None:
         """Deny the tool call and record a pending approval."""
         from agentscope.message import ToolResultBlock
-        from copaw.security.tool_guard.approval import (
+        from haibot.security.tool_guard.approval import (
             format_findings_summary,
         )
 

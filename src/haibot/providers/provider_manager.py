@@ -13,19 +13,19 @@ from pydantic import BaseModel
 
 from agentscope.model import ChatModelBase
 
-from copaw.providers.provider import (
+from haibot.providers.provider import (
     ModelInfo,
     DefaultProvider,
     Provider,
     ProviderInfo,
 )
-from copaw.providers.models import ModelSlotConfig
-from copaw.providers.openai_provider import OpenAIProvider
-from copaw.providers.anthropic_provider import AnthropicProvider
-from copaw.providers.gemini_provider import GeminiProvider
-from copaw.providers.ollama_provider import OllamaProvider
-from copaw.constant import SECRET_DIR
-from copaw.local_models import create_local_chat_model
+from haibot.providers.models import ModelSlotConfig
+from haibot.providers.openai_provider import OpenAIProvider
+from haibot.providers.anthropic_provider import AnthropicProvider
+from haibot.providers.gemini_provider import GeminiProvider
+from haibot.providers.ollama_provider import OllamaProvider
+from haibot.constant import SECRET_DIR
+from haibot.local_models import create_local_chat_model
 
 logger = logging.getLogger(__name__)
 

@@ -116,7 +116,7 @@ def version_cmd(agent_id: str) -> None:
     help="Agent ID (defaults to 'default')",
 )
 def logs_cmd(lines: int, agent_id: str) -> None:
-    """Tail last N lines of WORKING_DIR/copaw.log."""
+    """Tail last N lines of WORKING_DIR/haibot.log."""
     ctx = _context(agent_id)
     lines = min(max(1, lines), 2000)
     click.echo(f"Agent: {agent_id}\n")

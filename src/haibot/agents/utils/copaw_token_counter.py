@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Token counting utilities for CoPaw using HuggingFace tokenizers.
+"""Token counting utilities for HaiBot using HuggingFace tokenizers.
 
 This module provides a configurable token counter that supports dynamic
 switching between different tokenizer models based on runtime configuration.
@@ -12,13 +12,13 @@ from typing import Any, TYPE_CHECKING
 from agentscope.token import HuggingFaceTokenCounter
 
 if TYPE_CHECKING:
-    from copaw.config.config import AgentProfileConfig
+    from haibot.config.config import AgentProfileConfig
 
 logger = logging.getLogger(__name__)
 
 
 class CopawTokenCounter(HuggingFaceTokenCounter):
-    """Token counter for CoPaw with configurable tokenizer support.
+    """Token counter for HaiBot with configurable tokenizer support.
 
     This class extends HuggingFaceTokenCounter to provide token counting
     functionality with support for both local and remote tokenizers,
@@ -157,7 +157,7 @@ class CopawTokenCounter(HuggingFaceTokenCounter):
 _token_counter_cache: dict[tuple, CopawTokenCounter] = {}
 
 
-def get_copaw_token_counter(
+def get_haibot_token_counter(
     agent_config: "AgentProfileConfig",
 ) -> CopawTokenCounter:
     """Get or create a token counter instance for the given agent conf.

@@ -9,7 +9,7 @@ from typing import Any, List
 from agentscope.model import ChatModelBase
 import anthropic
 
-from copaw.providers.provider import ModelInfo, Provider
+from haibot.providers.provider import ModelInfo, Provider
 
 DASHSCOPE_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 CODING_DASHSCOPE_BASE_URL = "https://coding.dashscope.aliyuncs.com/v1"
@@ -124,7 +124,7 @@ class AnthropicProvider(Provider):
             client_kwargs["default_headers"] = {
                 "x-dashscope-agentapp": json.dumps(
                     {
-                        "agentType": "CoPaw",
+                        "agentType": "HaiBot",
                         "deployType": "UnKnown",
                         "moduleCode": "model",
                         "agentCode": "UnKnown",
@@ -136,7 +136,7 @@ class AnthropicProvider(Provider):
             client_kwargs["default_headers"] = {
                 "X-DashScope-Cdpl": json.dumps(
                     {
-                        "agentType": "CoPaw",
+                        "agentType": "HaiBot",
                         "deployType": "UnKnown",
                         "moduleCode": "model",
                         "agentCode": "UnKnown",

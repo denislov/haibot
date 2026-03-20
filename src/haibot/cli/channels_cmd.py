@@ -56,7 +56,7 @@ _ALL_CHANNEL_NAMES = {
 # Public alias for tests and external use.
 CHANNEL_NAMES = _ALL_CHANNEL_NAMES
 
-# Template for `copaw channels install <key>` stub (channel key substituted).
+# Template for `haibot channels install <key>` stub (channel key substituted).
 CHANNEL_TEMPLATE = '''# -*- coding: utf-8 -*-
 """Custom channel: {key}. Edit and implement required methods."""
 from __future__ import annotations
@@ -69,8 +69,8 @@ from agentscope_runtime.engine.schemas.agent_schemas import (
     ContentType,
 )
 
-from copaw.app.channels.base import BaseChannel
-from copaw.app.channels.schema import ChannelType
+from haibot.app.channels.base import BaseChannel
+from haibot.app.channels.schema import ChannelType
 
 
 class CustomChannel(BaseChannel):
@@ -585,7 +585,7 @@ def configure_voice(
     welcome_greeting = click.prompt(
         "Welcome greeting",
         default=current_config.welcome_greeting
-        or "Hi! This is CoPaw. How can I help you?",
+        or "Hi! This is HaiBot. How can I help you?",
         type=str,
     )
     current_config.welcome_greeting = welcome_greeting
@@ -944,7 +944,7 @@ def _install_channel_to_dir(
     )
     click.echo(
         f"✓ Created {dest_file}. Edit and add config with "
-        "`copaw channels config`.",
+        "`haibot channels config`.",
     )
 
 

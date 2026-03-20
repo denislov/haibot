@@ -5,7 +5,7 @@ This module provides a unified factory for creating chat model instances
 and their corresponding formatters based on configuration.
 
 Example:
-    >>> from copaw.agents.model_factory import create_model_and_formatter
+    >>> from haibot.agents.model_factory import create_model_and_formatter
     >>> model, formatter = create_model_and_formatter()
 """
 

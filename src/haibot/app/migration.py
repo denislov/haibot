@@ -20,7 +20,7 @@ from ..config.utils import load_config, save_config
 
 logger = logging.getLogger(__name__)
 
-_LEGACY_DEFAULT_WORKING_DIR = Path("~/.copaw").expanduser().resolve()
+_LEGACY_DEFAULT_WORKING_DIR = Path("~/.haibot").expanduser().resolve()
 
 
 def migrate_legacy_workspace_to_default_agent() -> bool:
@@ -80,7 +80,7 @@ def migrate_legacy_workspace_to_default_agent() -> bool:
     default_agent_config = AgentProfileConfig(
         id="default",
         name="Default Agent",
-        description="Default CoPaw agent (migrated from legacy config)",
+        description="Default HaiBot agent (migrated from legacy config)",
         workspace_dir=str(default_workspace),
         channels=config.channels if hasattr(config, "channels") else None,
         mcp=config.mcp if hasattr(config, "mcp") else None,
@@ -122,8 +122,8 @@ def migrate_legacy_workspace_to_default_agent() -> bool:
     logger.info(f"Created agent config: {agent_config_path}")
 
     # Migrate existing workspace files from legacy default working dir.
-    # When COPAW_WORKING_DIR is customized, historical data may still exist
-    # under "~/.copaw".
+    # When HAIBOT_WORKING_DIR is customized, historical data may still exist
+    # under "~/.haibot".
     old_workspace = _LEGACY_DEFAULT_WORKING_DIR
 
     migrated_items = []

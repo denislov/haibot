@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class VoiceChannel(BaseChannel):
-    """CoPaw Voice channel backed by Twilio ConversationRelay.
+    """HaiBot Voice channel backed by Twilio ConversationRelay.
 
     ``uses_manager_queue = False`` because voice calls are long-lived
     WebSocket sessions -- the ConversationRelay handler runs its own
@@ -98,8 +98,8 @@ class VoiceChannel(BaseChannel):
             return
 
         # Start Cloudflare tunnel pointing at the app's serving port
-        from copaw.tunnel import CloudflareTunnelDriver
-        from copaw.config.utils import read_last_api
+        from haibot.tunnel import CloudflareTunnelDriver
+        from haibot.config.utils import read_last_api
 
         self.tunnel_mgr = CloudflareTunnelDriver()
         api_info = read_last_api()

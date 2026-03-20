@@ -1,37 +1,37 @@
 ---
 name: cron
-description: 通过 copaw 命令管理定时任务 - 创建、查询、暂停、恢复、删除任务
-metadata: { "builtin_skill_version": "1.0", "copaw": { "emoji": "⏰" } }
+description: 通过 haibot 命令管理定时任务 - 创建、查询、暂停、恢复、删除任务
+metadata: { "builtin_skill_version": "1.0", "haibot": { "emoji": "⏰" } }
 ---
 
 # 定时任务管理
 
-使用 `copaw cron` 命令管理定时任务。
+使用 `haibot cron` 命令管理定时任务。
 
 ## 常用命令
 
 ```bash
 # 列出所有任务（默认操作 default agent）
-copaw cron list
+haibot cron list
 
 # 为特定 agent 列出任务
-copaw cron list --agent-id abc123
+haibot cron list --agent-id abc123
 
 # 查看任务详情
-copaw cron get <job_id> --agent-id <agent_id>
+haibot cron get <job_id> --agent-id <agent_id>
 
 # 查看任务状态
-copaw cron state <job_id> --agent-id <agent_id>
+haibot cron state <job_id> --agent-id <agent_id>
 
 # 删除任务
-copaw cron delete <job_id> --agent-id <agent_id>
+haibot cron delete <job_id> --agent-id <agent_id>
 
 # 暂停/恢复任务
-copaw cron pause <job_id> --agent-id <agent_id>
-copaw cron resume <job_id> --agent-id <agent_id>
+haibot cron pause <job_id> --agent-id <agent_id>
+haibot cron resume <job_id> --agent-id <agent_id>
 
 # 立即执行一次
-copaw cron run <job_id> --agent-id <agent_id>
+haibot cron run <job_id> --agent-id <agent_id>
 ```
 
 **重要**：所有命令都**必须**显式指定 `--agent-id` 参数。你的 agent_id 在系统提示的 Agent Identity 部分（`Your agent id is ...`）中已告知，直接使用该值。**不得省略**，否则任务会错误地创建到 default agent 的 workspace。
@@ -46,7 +46,7 @@ copaw cron run <job_id> --agent-id <agent_id>
 
 ```bash
 # 每天 9:00 发送文本消息（默认 agent）
-copaw cron create \
+haibot cron create \
   --type text \
   --name "每日早安" \
   --cron "0 9 * * *" \
@@ -56,7 +56,7 @@ copaw cron create \
   --text "早上好！"
 
 # 为特定 agent 创建任务
-copaw cron create \
+haibot cron create \
   --agent-id abc123 \
   --type agent \
   --name "检查待办" \
@@ -85,7 +85,7 @@ copaw cron create \
 ### 从 JSON 创建（复杂配置）
 
 ```bash
-copaw cron create -f job_spec.json
+haibot cron create -f job_spec.json
 ```
 
 ## Cron 表达式示例
@@ -101,7 +101,7 @@ copaw cron create -f job_spec.json
 ## 使用建议
 
 - 缺少参数时，询问用户补充后再创建
-- 暂停/删除/恢复前，用 `copaw cron list` 查找 job_id
-- 排查问题时，用 `copaw cron state <job_id>` 查看状态
+- 暂停/删除/恢复前，用 `haibot cron list` 查找 job_id
+- 排查问题时，用 `haibot cron state <job_id>` 查看状态
 - 给用户的命令要完整、可直接复制执行
 - **必须**指定 `--agent-id` 参数，值从系统提示的 Agent Identity 部分读取
