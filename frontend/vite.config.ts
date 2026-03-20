@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      outDir: "../backend/haibot/console",
+      outDir: "../src/haibot/console",
       emptyOutDir: true,
       rollupOptions: {
         output: {
