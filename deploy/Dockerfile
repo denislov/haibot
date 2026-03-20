@@ -14,15 +14,15 @@ FROM agentscope-registry.ap-southeast-1.cr.aliyuncs.com/agentscope/node:slim
 # ENV variables
 ENV NODE_ENV=production
 ENV WORKSPACE_DIR=/app
-ENV COPAW_WORKING_DIR=/app/working
-ENV COPAW_SECRET_DIR=/app/working.secret
+ENV HAIBOT_WORKING_DIR=/app/working
+ENV HAIBOT_SECRET_DIR=/app/working.secret
 
-# Channel filtering: use COPAW_DISABLED_CHANNELS (exclusion, recommended)
-# or COPAW_ENABLED_CHANNELS (whitelist). Override at runtime with -e.
-ARG COPAW_DISABLED_CHANNELS="imessage"
-ENV COPAW_DISABLED_CHANNELS=${COPAW_DISABLED_CHANNELS}
-ARG COPAW_ENABLED_CHANNELS=""
-ENV COPAW_ENABLED_CHANNELS=${COPAW_ENABLED_CHANNELS}
+# Channel filtering: use HAIBOT_DISABLED_CHANNELS (exclusion, recommended)
+# or HAIBOT_ENABLED_CHANNELS (whitelist). Override at runtime with -e.
+ARG HAIBOT_DISABLED_CHANNELS="imessage"
+ENV HAIBOT_DISABLED_CHANNELS=${HAIBOT_DISABLED_CHANNELS}
+ARG HAIBOT_ENABLED_CHANNELS=""
+ENV HAIBOT_ENABLED_CHANNELS=${HAIBOT_ENABLED_CHANNELS}
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -75,7 +75,7 @@ ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 # Avoid Playwright downloading its own browser when executable_path is used.
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 # Indicate running in container (used e.g. for Chromium --no-sandbox).
-ENV COPAW_RUNNING_IN_CONTAINER=1
+ENV HAIBOT_RUNNING_IN_CONTAINER=1
 
 WORKDIR ${WORKSPACE_DIR}
 
@@ -85,14 +85,14 @@ ENV PATH="/app/venv/bin:$PATH"
 COPY pyproject.toml setup.py README.md ./
 COPY src ./src
 # Inject console dist from build stage (repo does not commit dist).
-COPY --from=console-builder /app/console/dist/ ./src/copaw/console/
+COPY --from=console-builder /app/console/dist/ ./src/haibot/console/
 RUN pip install --no-cache-dir .[ollama]
 
 # Init working dir with default config.json and HEARTBEAT.md (build time).
-RUN copaw init --defaults --accept-security
+RUN haibot init --defaults --accept-security
 
-# CoPaw app port (default 8088). Override at runtime with -e COPAW_PORT=3000.
-ENV COPAW_PORT=8088
+# HaiBot app port (default 8088). Override at runtime with -e HAIBOT_PORT=3000.
+ENV HAIBOT_PORT=8088
 
 COPY deploy/config/supervisord.conf.template /etc/supervisor/conf.d/supervisord.conf.template
 COPY --chmod=755 deploy/entrypoint.sh /entrypoint.sh
