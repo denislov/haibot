@@ -8,6 +8,14 @@
       </button>
     </div>
 
+    <!-- New Chat Button -->
+    <div class="hs-actions">
+      <el-button class="hs-new-btn" @click="$emit('newChat')">
+        <template #icon><el-icon><Plus /></el-icon></template>
+        {{ $t('chat.newChat') }}
+      </el-button>
+    </div>
+
     <!-- Scrollable list -->
     <div class="hs-list">
       <!-- Empty state -->
@@ -53,6 +61,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { Fold, More, Plus } from '@element-plus/icons-vue'
 import type { ChatSpec } from '@/types'
 
 const { t, locale } = useI18n()
@@ -67,6 +76,7 @@ defineEmits<{
   toggle: []
   selectChat: [chat: ChatSpec]
   chatAction: [cmd: string, chat: ChatSpec]
+  newChat: []
 }>()
 
 interface Group {
@@ -164,6 +174,28 @@ const groups = computed((): Group[] => {
 
 .hs-toggle :deep(.el-icon) {
   transform: rotate(180deg);
+}
+
+.hs-actions {
+  padding: 0 14px 10px;
+}
+
+.hs-new-btn {
+  width: 100%;
+  justify-content: center;
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--text-2);
+  height: 36px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+}
+
+.hs-new-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
 }
 
 .hs-list {

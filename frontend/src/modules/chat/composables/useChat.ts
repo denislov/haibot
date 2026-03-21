@@ -10,6 +10,7 @@ export function useChat() {
   const streaming = ref(false)
   const inputText = ref('')
   const activeChatId = ref<string | null>(null)
+  const welcomeMessage = ref<string | null>(null)
 
   let abortController: AbortController | null = null
 
@@ -26,9 +27,13 @@ export function useChat() {
       currentAssistantMsg = null
     }
 
-    function ensureAssistantMsg(): DisplayMessage {
+    function ensureAssistantMsg(agentId?: string, agentName?: string): DisplayMessage {
+      // If agent changes, flush current and start new
+      if (currentAssistantMsg && agentId !== currentAssistantMsg.agentId) {
+        flushAssistant()
+      }
       if (!currentAssistantMsg) {
-        currentAssistantMsg = { id: uuidv4(), role: 'assistant', blocks: [] }
+        currentAssistantMsg = { id: uuidv4(), role: 'assistant', blocks: [], agentId, agentName }
       }
       return currentAssistantMsg
     }
@@ -37,6 +42,9 @@ export function useChat() {
       const role = m.role as string
       const type = m.type as string
       const content = (m.content as ContentItem[]) || []
+      const metadata = (m.metadata as Record<string, unknown>) || {}
+      const agentId = metadata.agent_id as string | undefined
+      const agentName = metadata.agent_name as string | undefined
 
       if (role === 'user') {
         flushAssistant()
@@ -50,7 +58,7 @@ export function useChat() {
           blocks: [{ id: uuidv4(), kind: 'text', text }],
         })
       } else if (role === 'assistant') {
-        const msg = ensureAssistantMsg()
+        const msg = ensureAssistantMsg(agentId, agentName)
 
         if (type === 'reasoning') {
           const text = content.filter((c) => c.type === 'text').map((c) => c.text || '').join('')
@@ -78,7 +86,7 @@ export function useChat() {
           if (callId) callBlockMap.set(callId, block)
         }
       } else if (type === 'plugin_call_output') {
-        ensureAssistantMsg()
+        ensureAssistantMsg(agentId, agentName)
         const dataItem = content.find((c) => c.type === 'data')
         const data = (dataItem?.data as Record<string, unknown>) || {}
         const callId = data.call_id as string | undefined
@@ -102,18 +110,23 @@ export function useChat() {
 
   function clearMessages() {
     displayMessages.value = []
+    welcomeMessage.value = null
   }
 
   // ── Stop streaming ─────────────────────────────────────────────────────
-  function stopStreaming() {
+  function stopStreaming(agentId?: string) {
     abortController?.abort()
-    if (activeChatId.value) {
-      stopChat(activeChatId.value).catch(() => {})
+    if (activeChatId.value && !activeChatId.value.startsWith('temp-')) {
+      stopChat(activeChatId.value, agentId).catch(() => {})
     }
   }
 
   function setChatId(id: string | null) {
     activeChatId.value = id
+  }
+
+  function setWelcomeMessage(msg: string | null) {
+    welcomeMessage.value = msg
   }
 
   // ── Send message ───────────────────────────────────────────────────────
@@ -127,9 +140,12 @@ export function useChat() {
     agentId?: string,
     groupId?: string,
     reconnect?: boolean,
+    chatId?: string,
   ) {
     if (!reconnect && (!text.trim() || streaming.value)) return
     if (reconnect && streaming.value) return
+
+    if (chatId) setChatId(chatId)
 
     if (!reconnect) {
       // Add user message
@@ -411,11 +427,13 @@ export function useChat() {
     streaming,
     inputText,
     activeChatId,
+    welcomeMessage,
     convertHistoryToDisplay,
     setMessages,
     clearMessages,
     stopStreaming,
     setChatId,
+    setWelcomeMessage,
     sendMessage,
   }
 }

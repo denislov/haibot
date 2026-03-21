@@ -41,7 +41,7 @@ export const batchDeleteChats = (ids: string[]) =>
 
 /** Stop a running chat on the server side. */
 export const stopChat = (chatId: string, agentId?: string) => {
-  const url = agentId ? `/agents/${agentId}/console/chat/stop` : '/console/chat/stop'
+  const url = agentId ? `agents/${agentId}/console/chat/stop` : 'console/chat/stop'
   return api.post(url, null, { params: { chat_id: chatId } })
 }
 
@@ -84,10 +84,15 @@ export async function streamQuery(
   const endpoint = agentId ? `/agents/${agentId}/console/chat` : '/console/chat'
   const url = `${base}${apiPrefix}${endpoint}`
 
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (typeof TOKEN !== 'undefined' && TOKEN) {
+    headers['Authorization'] = `Bearer ${TOKEN}`
+  }
+
   try {
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(body),
       signal,
     })

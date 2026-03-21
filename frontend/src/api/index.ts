@@ -7,12 +7,15 @@ declare const TOKEN: string;
 const api = axios.create({
   baseURL: '/',
   timeout: 30000,
-  headers: { 'Content-Type': 'application/json' },
+  headers: { 
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${typeof TOKEN !== 'undefined' ? TOKEN : ''}`
+  },
 })
 
 api.interceptors.request.use(
   config => {
-    const base = BASE_URL || "";
+    const base = typeof BASE_URL !== 'undefined' ? BASE_URL : "";
     const apiPrefix = "/api";
     const normalizedPath = config.url?.startsWith("/") ? config.url : `/${config.url}`;
     config.url = `${base}${apiPrefix}${normalizedPath}`;

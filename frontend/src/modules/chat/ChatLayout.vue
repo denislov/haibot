@@ -49,6 +49,11 @@
             </div>
           </div>
         </div>
+        <div v-else-if="chat.welcomeMessage.value" class="welcome-container">
+          <div class="welcome-bubble">
+            {{ chat.welcomeMessage.value }}
+          </div>
+        </div>
         <ChatWindow
           v-else
           ref="chatWindowRef"
@@ -58,7 +63,7 @@
           v-model="chat.inputText.value"
           :streaming="chat.streaming.value"
           @send="sendMessage"
-          @stop="chat.stopStreaming"
+          @stop="chat.stopStreaming(selectedAgentId)"
         />
       </template>
 
@@ -80,6 +85,7 @@
       @toggle="rightCollapsed = !rightCollapsed"
       @select-chat="selectChat"
       @chat-action="handleChatAction"
+      @new-chat="handleNewChat"
     />
 
     <!-- Right expand button (shown when right sidebar collapsed AND a contact is selected) -->
@@ -159,8 +165,22 @@ const contactChats = computed(() => {
 
 // ── Select Agent ──────────────────────────────────────────────────────────
 function handleSelectAgent(agent: AgentInfo) {
+  if (selectedContact.value?.type === 'agent' && selectedContact.value.id === agent.id && chatStore.activeChat?.meta?._isTemp) {
+    return
+  }
   selectedContact.value = { type: 'agent', id: agent.id }
   selectedAgentId.value = agent.id
+  
+  // Find existing temp chat for this agent
+  const existingTemp = chatStore.chats.find(c => c.meta?._isTemp && c.meta?.agent_id === agent.id && !c.meta?.group_id)
+  if (existingTemp) {
+    chatStore.setActiveChat(existingTemp)
+    chat.setChatId(existingTemp.id)
+    chat.clearMessages()
+    chat.setWelcomeMessage(t('chat.emptyState'))
+    return
+  }
+
   const temp: ChatSpec = {
     id: 'temp-' + uuidv4(),
     name: 'New Chat',
@@ -173,13 +193,28 @@ function handleSelectAgent(agent: AgentInfo) {
   }
   chatStore.chats.unshift(temp)
   chatStore.setActiveChat(temp)
+  chat.setChatId(temp.id)
   chat.clearMessages()
+  chat.setWelcomeMessage(t('chat.emptyState'))
 }
 
 // ── Select Group Chat ─────────────────────────────────────────────────────
 function handleSelectGroup(gc: GroupChatConfig) {
+  if (selectedContact.value?.type === 'group' && selectedContact.value.id === gc.id && chatStore.activeChat?.meta?._isTemp) {
+    return
+  }
   selectedContact.value = { type: 'group', id: gc.id }
   selectedAgentId.value = 'main' // reset to avoid stale agent state
+
+  const existingTemp = chatStore.chats.find(c => c.meta?._isTemp && c.meta?.group_id === gc.id)
+  if (existingTemp) {
+    chatStore.setActiveChat(existingTemp)
+    chat.setChatId(existingTemp.id)
+    chat.clearMessages()
+    chat.setWelcomeMessage(t('chat.emptyState'))
+    return
+  }
+
   const temp: ChatSpec = {
     id: 'temp-' + uuidv4(),
     name: gc.name,
@@ -192,7 +227,21 @@ function handleSelectGroup(gc: GroupChatConfig) {
   }
   chatStore.chats.unshift(temp)
   chatStore.setActiveChat(temp)
+  chat.setChatId(temp.id)
   chat.clearMessages()
+  chat.setWelcomeMessage(t('chat.emptyState'))
+}
+
+// ── New Chat ──
+function handleNewChat() {
+  if (!selectedContact.value) return
+  if (selectedContact.value.type === 'agent') {
+    const agent = agentsList.value.find(a => a.id === selectedContact.value!.id)
+    if (agent) handleSelectAgent(agent)
+  } else {
+    const gc = groupChats.value.find(g => g.id === selectedContact.value!.id)
+    if (gc) handleSelectGroup(gc)
+  }
 }
 
 // ── Select Chat ───────────────────────────────────────────────────────────
@@ -211,7 +260,10 @@ async function selectChat(selected: ChatSpec) {
   if (!selected.meta?.group_id) {
     selectedAgentId.value = selected.meta?.agent_id ? String(selected.meta.agent_id) : 'main'
   }
-  if (selected.meta?._isTemp) return
+  if (selected.meta?._isTemp) {
+    chat.setWelcomeMessage(t('chat.emptyState'))
+    return
+  }
   historyLoading.value = true
   try {
     const history = await chatStore.getChatHistory(selected.id)
@@ -224,7 +276,7 @@ async function selectChat(selected: ChatSpec) {
       const currentAgentId = (selected.meta?.agent_id as string) || selectedAgentId.value
       const activeGroupId = currentGroupId.value || undefined
 
-      chat.sendMessage(
+      await chat.sendMessage(
         '',
         selected.session_id,
         selected.user_id,
@@ -248,8 +300,9 @@ async function sendMessage() {
   const text = chat.inputText.value.trim()
   if (!text || !chatStore.activeChat) return
   chat.inputText.value = ''
+  chat.setWelcomeMessage(null)
 
-  const activeChat = chatStore.activeChat
+  let activeChat = chatStore.activeChat
 
   // Persist temp chat on first message
   if (activeChat.meta?._isTemp) {
@@ -264,19 +317,21 @@ async function sendMessage() {
       const idx = chatStore.chats.findIndex((c) => c.id === activeChat.id)
       if (idx !== -1) chatStore.chats[idx] = persisted
       chatStore.setActiveChat(persisted)
+      activeChat = persisted
+      chat.setChatId(persisted.id)
     } catch (e: unknown) {
       ElMessage.error(t('chat.createFailed') + ': ' + (e instanceof Error ? e.message : String(e)))
       return
     }
   }
 
-  const currentAgentId = (chatStore.activeChat!.meta?.agent_id as string) || selectedAgentId.value
+  const currentAgentId = (activeChat.meta?.agent_id as string) || selectedAgentId.value
   const activeGroupId = currentGroupId.value || undefined
 
   await chat.sendMessage(
     text,
-    chatStore.activeChat!.session_id,
-    chatStore.activeChat!.user_id,
+    activeChat.session_id,
+    activeChat.user_id,
     () => chatWindowRef.value?.scrollIfNearBottom(),
     () => chatStore.loadChats(),
     (e) => ElMessage.error(t('chat.requestFailed') + ': ' + e.message),
@@ -372,6 +427,7 @@ onMounted(async () => {
   } else if (agentsList.value.length > 0) {
     selectedContact.value = { type: 'agent', id: agentsList.value[0].id }
     selectedAgentId.value = agentsList.value[0].id
+    handleSelectAgent(agentsList.value[0])
   }
 })
 </script>
@@ -454,6 +510,34 @@ onMounted(async () => {
 .empty-content p {
   color: var(--text-4);
   font-size: 14px;
+}
+
+/* ── Welcome message ── */
+.welcome-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.welcome-bubble {
+  max-width: 500px;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  padding: 16px 20px;
+  border-radius: 12px;
+  font-size: 15px;
+  line-height: 1.6;
+  text-align: center;
+  border: 1px solid var(--primary-light);
+  box-shadow: var(--shadow-sm);
+  animation: slide-up 0.4s ease-out;
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ── History loading skeleton ── */
