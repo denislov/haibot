@@ -206,6 +206,7 @@ export function useChat() {
       let agentName: string | undefined
 
       // Check message-level events for agent_id in metadata
+      // (injected by the runner into every Msg, persisted in session state)
       if (event.object === 'message' && event.status === 'in_progress') {
         const metadata = event.metadata as Record<string, unknown> | undefined
         if (metadata?.agent_id) {
@@ -218,8 +219,7 @@ export function useChat() {
         }
       } else if (event.object === 'content' && event.msg_id) {
         // Route content events via msg_id → agentId mapping (preferred),
-        // but also check metadata.agent_id as fallback (handles race where
-        // content arrives before its parent message event)
+        // but also check metadata.agent_id as fallback
         const fromMap = msgIdToAgentId.get(event.msg_id as string)
         const fromMeta = (event.metadata as Record<string, unknown> | undefined)?.agent_id as string | undefined
         eventAgentId = fromMap ?? fromMeta ?? MAIN

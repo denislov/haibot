@@ -81,7 +81,17 @@ export async function streamQuery(
 
   const base = (typeof BASE_URL !== 'undefined' && BASE_URL) || ''
   const apiPrefix = "/api"
-  const endpoint = agentId ? `/agents/${agentId}/console/chat` : '/console/chat'
+
+  let endpoint: string
+  if (groupId) {
+    // Group chat → use the multi-agent stream coordinator
+    endpoint = '/console/group-chat/stream'
+    // Merge group-specific fields into the body
+    body.group_chat_id = groupId
+    body.text = input
+  } else {
+    endpoint = agentId ? `/agents/${agentId}/console/chat` : '/console/chat'
+  }
   const url = `${base}${apiPrefix}${endpoint}`
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }

@@ -367,6 +367,7 @@ class AgentRunner(Runner):
             raise
         finally:
             if agent is not None and session_state_loaded:
+                logger.info(json.dumps(agent.memory.state_dict(), indent=4, ensure_ascii=False))
                 await self.session.save_session_state(
                     session_id=session_id,
                     user_id=user_id,

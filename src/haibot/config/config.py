@@ -452,6 +452,30 @@ class AgentProfileConfig(BaseModel):
     )
 
 
+class GroupChatConfig(BaseModel):
+    """Group chat configuration: host + participants."""
+
+    id: str = Field(..., description="Unique group chat ID")
+    name: str = Field(default="", description="Group chat display name")
+    host_agent_id: str = Field(
+        ..., description="Agent ID of the host/moderator"
+    )
+    participant_agent_ids: List[str] = Field(
+        default_factory=list,
+        description="Agent IDs of participants",
+    )
+    max_rounds: int = Field(
+        default=10,
+        ge=1,
+        le=50,
+        description="Max conversation rounds",
+    )
+    created_at: str = Field(
+        default="",
+        description="ISO 8601 creation timestamp",
+    )
+
+
 class AgentsConfig(BaseModel):
     """Agents configuration (root config.json only contains references)."""
 
@@ -813,6 +837,10 @@ class Config(BaseModel):
     agents: AgentsConfig = Field(default_factory=AgentsConfig)
     last_dispatch: Optional[LastDispatchConfig] = None
     security: SecurityConfig = Field(default_factory=SecurityConfig)
+    group_chats: Dict[str, GroupChatConfig] = Field(
+        default_factory=dict,
+        description="Group chat configurations",
+    )
     show_tool_details: bool = True
     user_timezone: str = Field(
         default_factory=detect_system_timezone,

@@ -11,8 +11,9 @@ Available Hooks:
 
 from .bootstrap import BootstrapHook
 from .memory_compaction import MemoryCompactionHook
-
+from .agent_info import AgentInfoHook
 __all__ = [
     "BootstrapHook",
     "MemoryCompactionHook",
+    "AgentInfoHook",
 ]

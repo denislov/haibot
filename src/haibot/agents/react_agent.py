@@ -20,7 +20,7 @@ from anyio import ClosedResourceError
 from pydantic import BaseModel
 
 from .command_handler import CommandHandler
-from .hooks import BootstrapHook, MemoryCompactionHook
+from .hooks import BootstrapHook, MemoryCompactionHook, AgentInfoHook
 from .model_factory import create_model_and_formatter
 from .prompt import build_system_prompt_from_working_dir
 from .skills_manager import (
@@ -337,6 +337,22 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
             hook=bootstrap_hook.__call__,
         )
         logger.debug("Registered bootstrap hook")
+
+        agent_info_hook = AgentInfoHook(
+            agent_id=self._agent_config.id,
+            agent_name=self._agent_config.name,
+        )
+        self.register_instance_hook(
+            hook_type="post_reply",
+            hook_name="agent_info_hook",
+            hook=agent_info_hook.post_reply,
+        )
+        self.register_instance_hook(
+            hook_type="pre_observe",
+            hook_name="agent_info_hook",
+            hook=agent_info_hook.pre_observe,
+        )
+        logger.info("Registered agent info hook")
 
         # Memory compaction hook - auto-compact when context is full
         if self._enable_memory_manager and self.memory_manager is not None:
