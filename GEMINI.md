@@ -60,13 +60,13 @@ pnpm build  # Build for production (outputs to src/haibot/console/)
 ### Testing & Validation
 ```bash
 # Run all tests
-python scripts/run_tests.py
+uv run scripts/run_tests.py
 
 # Run specific unit tests
-python scripts/run_tests.py -u providers
+uv run scripts/run_tests.py -u providers
 
 # Run with coverage
-python scripts/run_tests.py -a -c
+uv run scripts/run_tests.py -a -c
 
 # Linting
 pre-commit run --all-files

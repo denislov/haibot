@@ -72,7 +72,7 @@
           v-for="provider in providers"
           :key="provider.id"
           class="provider-card"
-          :class="{ authorized: provider.has_api_key }"
+          :class="{ authorized: isAuthorized(provider) }"
         >
           <div class="provider-header">
             <div class="provider-name-line">
@@ -81,19 +81,19 @@
                 {{ provider.is_custom ? $t('settings.models.custom') : (provider.is_local ? $t('settings.models.local') : $t('settings.models.builtIn')) }}
               </span>
             </div>
-            <span class="provider-status" :class="provider.has_api_key ? 'auth' : 'unauth'">
+            <span class="provider-status" :class="isAuthorized(provider) ? 'auth' : 'unauth'">
               <span class="dot" />
-              {{ provider.has_api_key ? $t('settings.models.authorized') : $t('settings.models.unauthorized') }}
+              {{ isAuthorized(provider) ? $t('settings.models.authorized') : $t('settings.models.unauthorized') }}
             </span>
           </div>
 
           <div v-if="!provider.is_local" class="provider-field">
             <span class="field-label">{{ $t('settings.models.baseUrl') }}:</span>
-            <span class="field-value" :title="provider.current_base_url">{{ truncate(provider.current_base_url, 32) || $t('settings.models.notSet') }}</span>
+            <span class="field-value" :title="provider.base_url">{{ truncate(provider.base_url, 32) || $t('settings.models.notSet') }}</span>
           </div>
           <div v-if="!provider.is_local" class="provider-field">
             <span class="field-label">{{ $t('settings.models.apiKey') }}:</span>
-            <span class="field-value">{{ provider.current_api_key || $t('settings.models.notSet') }}</span>
+            <span class="field-value">{{ provider.api_key || $t('settings.models.notSet') }}</span>
           </div>
           <div class="provider-field">
             <span class="field-label">{{ $t('settings.models.model') }}:</span>
@@ -117,7 +117,7 @@
     <!-- ═══════════════ Provider Edit Dialog ═══════════════ -->
     <el-dialog v-model="providerDialogVisible" :title="`${$t('common.edit')} ${editingProvider?.name}`" width="440px" destroy-on-close>
       <el-form label-position="top">
-        <el-form-item v-if="editingProvider && (editingProvider.is_custom || editingProvider.needs_base_url)" :label="$t('settings.models.baseUrl')">
+        <el-form-item v-if="editingProvider && (editingProvider.is_custom || !editingProvider.freeze_url)" :label="$t('settings.models.baseUrl')">
           <el-input v-model="providerForm.base_url" placeholder="http://localhost:11434/v1" />
         </el-form-item>
         <el-form-item :label="$t('settings.models.apiKey')">
@@ -243,11 +243,16 @@ const newModelId = ref('')
 const newModelName = ref('')
 const addingModel = ref(false)
 
-const authorizedProviders = computed(() => providers.value.filter((p) => p.has_api_key))
+const authorizedProviders = computed(() => providers.value.filter(isAuthorized))
 const availableModels = computed<ModelInfo[]>(() => {
   const p = providers.value.find((p) => p.id === selectedProvider.value)
   return p?.models ?? []
 })
+
+function isAuthorized(p: ProviderInfo): boolean {
+  if (!p.require_api_key) return true;
+  return !!p.api_key;
+}
 
 function truncate(s: string, max: number): string {
   if (!s) return ''
@@ -265,9 +270,11 @@ async function loadData() {
   try {
     const [provData, activeData] = await Promise.all([listProviders(), getActiveModel()])
     providers.value = provData
-    activeModel.value = activeData.active_llm
-    selectedProvider.value = activeData.active_llm.provider_id
-    selectedModel.value = activeData.active_llm.model
+    if (activeData.active_llm) {
+      activeModel.value = activeData.active_llm
+      selectedProvider.value = activeData.active_llm.provider_id
+      selectedModel.value = activeData.active_llm.model
+    }
   } catch (e: unknown) {
     ElMessage.error('Load failed: ' + (e instanceof Error ? e.message : String(e)))
   } finally {
@@ -284,7 +291,7 @@ async function saveLLM() {
   savingLLM.value = true
   try {
     const res = await setActiveModel({ provider_id: selectedProvider.value, model })
-    activeModel.value = res.active_llm
+    activeModel.value = res.active_llm ?? {provider_id:"", model:""}
     isSaved.value = true
     ElMessage.success('Saved')
     setTimeout(() => { isSaved.value = false }, 3000)
@@ -297,7 +304,7 @@ async function saveLLM() {
 function openProviderEdit(p: ProviderInfo) {
   editingProvider.value = p
   providerForm.api_key = ''
-  providerForm.base_url = p.current_base_url || ''
+  providerForm.base_url = p.base_url || ''
   providerDialogVisible.value = true
 }
 
