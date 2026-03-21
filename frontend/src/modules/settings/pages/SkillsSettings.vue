@@ -2,22 +2,54 @@
   <div class="page">
     <div class="page-header">
       <div><h1 class="page-title">{{ $t('settings.skills.title') }}</h1><p class="page-desc">{{ $t('settings.skills.desc') }}</p></div>
-      <el-button type="primary" @click="createDialogVisible = true"><el-icon><Plus /></el-icon>{{ $t('settings.skills.createSkill') }}</el-button>
+      <div class="header-actions">
+        <div class="agent-selector-wrapper">
+          <span class="selector-label">{{ $t('settings.agents.title') }}</span>
+          <el-select v-model="selectedAgentId" :placeholder="$t('settings.agents.displayNamePlaceholder') || 'Select Agent'" @change="onAgentChange" style="width: 200px" size="small">
+            <el-option v-for="agent in agents" :key="agent.id" :label="agent.name" :value="agent.id" />
+          </el-select>
+        </div>
+        <el-button type="primary" @click="createDialogVisible = true"><el-icon><Plus /></el-icon>{{ $t('settings.skills.createSkill') }}</el-button>
+      </div>
     </div>
 
     <div v-if="loading" class="loading-state"><el-icon class="is-loading"><Loading /></el-icon></div>
 
     <div v-else class="skills-grid">
       <div v-for="skill in skills" :key="skill.name" class="skill-card" :class="{ enabled: skill.enabled }" @click="openDetail(skill)">
-        <div class="skill-card-header">
-          <span class="skill-name">{{ skill.name }}</span>
-          <span class="skill-status" :class="skill.enabled ? 'on' : 'off'">{{ skill.enabled ? $t('common.enabled') : $t('common.disabled') }}</span>
+        <div class="skill-main-header">
+          <div class="skill-title-block">
+            <span class="skill-icon-wrapper">
+              <span v-if="getCustomEmoji(skill)">{{ getCustomEmoji(skill) }}</span>
+              <el-icon v-else class="default-icon"><Document /></el-icon>
+            </span>
+            <span class="skill-name">{{ skill.name }}</span>
+          </div>
+          <span class="skill-status" :class="skill.enabled ? 'on' : 'off'">
+            <span class="dot" />
+            {{ skill.enabled ? $t('common.enabled') : $t('common.disabled') }}
+          </span>
         </div>
-        <div class="skill-meta">{{ $t('settings.skills.source') }}: {{ skill.source || 'builtin' }}</div>
+
+        <div class="skill-section">
+          <div class="section-label">Description</div>
+          <div class="info-box skill-desc">{{ skill.description || 'No description provided.' }}</div>
+        </div>
+
+        <div class="skill-section">
+          <div class="section-label">Source</div>
+          <span class="badge" :class="'badge-' + (skill.source || 'builtin')">{{ skill.source || 'builtin' }}</span>
+        </div>
+
+        <div class="skill-section">
+          <div class="section-label">Path</div>
+          <div class="info-box path-box">{{ skill.path }}</div>
+        </div>
+
         <div class="skill-card-footer" @click.stop>
-          <el-button v-if="skill.enabled" size="small" @click="toggleSkill(skill, false)">{{ $t('common.disable') }}</el-button>
-          <el-button v-else size="small" type="primary" @click="toggleSkill(skill, true)">{{ $t('common.enable') }}</el-button>
-          <el-button v-if="skill.source !== 'builtin'" size="small" type="danger" link @click="handleDelete(skill)"><el-icon><Delete /></el-icon></el-button>
+          <el-button v-if="skill.enabled" link type="primary" @click="toggleSkill(skill, false)">{{ $t('common.disable') }}</el-button>
+          <el-button v-else link type="primary" @click="toggleSkill(skill, true)">{{ $t('common.enable') }}</el-button>
+          <el-button v-if="skill.source !== 'builtin'" link type="danger" @click="handleDelete(skill)">{{ $t('common.delete') || 'Delete' }}</el-button>
         </div>
       </div>
     </div>
@@ -67,10 +99,16 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import yaml from 'js-yaml'
+import { Document, Plus, Loading, Close } from '@element-plus/icons-vue'
 import { renderMarkdownWithFrontMatter } from '@/utils/useMarkdown'
 import { listSkills, enableSkill, disableSkill, deleteSkill, createSkill, updateSkill } from '@/api/skills'
-import type { SkillSpec } from '@/types'
+import { listAgents } from '@/api/agents'
+import { setAgentHeader } from '@/api/index'
+import type { SkillSpec, AgentSummary } from '@/types'
 
+const agents = ref<AgentSummary[]>([])
+const selectedAgentId = ref<string>('')
 const skills = ref<SkillSpec[]>([])
 const loading = ref(false)
 const creating = ref(false)
@@ -81,7 +119,26 @@ const editContent = ref('')
 const contentTab = ref<'edit' | 'preview'>('edit')
 const createForm = reactive({ name: '', content: '' })
 
+async function loadAgents() {
+  try {
+    agents.value = await listAgents()
+    if (agents.value.length > 0) {
+      selectedAgentId.value = agents.value[0].id
+      onAgentChange()
+    }
+  } catch (e: unknown) {
+    ElMessage.error(String(e))
+  }
+}
+
+function onAgentChange() {
+  if (!selectedAgentId.value) return
+  setAgentHeader(selectedAgentId.value)
+  loadSkills()
+}
+
 async function loadSkills() {
+  if (!selectedAgentId.value) return
   loading.value = true
   try { skills.value = await listSkills() }
   catch (e: unknown) { ElMessage.error(String(e)) }
@@ -114,12 +171,29 @@ function closeDetail() { detailSkill.value = null }
 async function saveSkill() {
   if (!detailSkill.value) return
   saving.value = true
-  try { await updateSkill(detailSkill.value.name, editContent.value); ElMessage.success('Saved') }
+  try { await updateSkill({ name: detailSkill.value.name, content: editContent.value }); ElMessage.success('Saved') }
   catch (e: unknown) { ElMessage.error(String(e)) }
   finally { saving.value = false }
 }
 
-onMounted(loadSkills)
+function getCustomEmoji(skill: SkillSpec): string | null {
+  try {
+    if (skill.content) {
+      const match = skill.content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+      if (match && match[1]) {
+        const metadataObj = yaml.load(match[1]) as any
+        if (metadataObj?.metadata?.haibot?.emoji) {
+          return metadataObj.metadata.haibot.emoji
+        }
+      }
+    }
+  } catch (e) {
+    // disregard parse errors
+  }
+  return null
+}
+
+onMounted(loadAgents)
 </script>
 
 <style scoped>
@@ -127,17 +201,53 @@ onMounted(loadSkills)
 .page-title { font-size: 22px; font-weight: 700; color: var(--text-1); }
 .page-desc { font-size: 13px; color: var(--text-3); margin-top: 4px; }
 .loading-state { display: flex; justify-content: center; padding: 60px 0; color: var(--text-4); font-size: 24px; }
-.skills-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-.skill-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; cursor: pointer; transition: box-shadow var(--transition-fast); }
+.skills-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.skill-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px; cursor: pointer; transition: box-shadow var(--transition-fast); display: flex; flex-direction: column; gap: 14px; }
 .skill-card:hover { box-shadow: var(--shadow-md); }
 .skill-card.enabled { border-color: var(--primary); }
-.skill-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.skill-name { font-size: 13px; font-weight: 600; color: var(--text-1); }
-.skill-status { font-size: 11px; padding: 2px 7px; border-radius: var(--radius-sm); }
-.skill-status.on { color: var(--success); background: var(--success-light); }
-.skill-status.off { color: var(--text-4); background: var(--bg); }
-.skill-meta { font-size: 12px; color: var(--text-3); }
-.skill-card-footer { display: flex; justify-content: flex-end; gap: 6px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+
+.skill-main-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.skill-title-block { display: flex; align-items: center; gap: 10px; }
+.skill-icon-wrapper { font-size: 20px; color: var(--primary); display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: var(--primary-light, rgba(59,130,246,0.1)); border-radius: 6px; }
+.default-icon { color: var(--primary); font-size: 18px; }
+.skill-name { font-size: 16px; font-weight: 600; color: var(--text-1); }
+
+.skill-status { display: flex; align-items: center; gap: 4px; font-size: 11px; padding: 2px 7px; border-radius: var(--radius-sm); white-space: nowrap; }
+.skill-status.on { color: var(--success); }
+.skill-status.off { color: var(--text-4); }
+.skill-status .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+.skill-section { display: flex; flex-direction: column; gap: 4px; }
+.section-label { font-size: 12px; color: var(--text-3); }
+
+.info-box { background: var(--bg); padding: 10px 12px; border-radius: 6px; font-size: 13px; color: var(--text-2); border: 1px solid var(--border); }
+.skill-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.5;
+}
+.path-box {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+}
+
+.badge { font-size: 11px; padding: 2px 8px; border-radius: var(--radius-sm); border: 1px solid; display: inline-block; width: fit-content; }
+.badge-builtin { color: #8b5cf6; border-color: #ddd6fe; background: #f5f3ff; }
+.badge-customized { color: #3b82f6; border-color: #bfdbfe; background: #eff6ff; }
+[data-theme="dark"] .badge-builtin { color: #a78bfa; border-color: rgba(139,92,246,.3); background: rgba(139,92,246,.1); }
+[data-theme="dark"] .badge-customized { color: #60a5fa; border-color: rgba(59,130,246,.3); background: rgba(59,130,246,.1); }
+
+.header-actions { display: flex; align-items: center; gap: 16px; }
+.agent-selector-wrapper { display: flex; align-items: center; gap: 8px; }
+.selector-label { font-size: 12px; font-weight: 500; color: var(--text-3); white-space: nowrap; }
+.skill-card-footer { display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--border); padding-top: 12px; margin-top: auto; }
 .drawer-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 2000; display: flex; justify-content: flex-end; }
 .detail-drawer { width: 520px; height: 100%; background: var(--bg-card); display: flex; flex-direction: column; box-shadow: -4px 0 24px rgba(0,0,0,0.12); animation: slideIn 0.22s ease; }
 @keyframes slideIn { from { transform: translateX(100%); } }

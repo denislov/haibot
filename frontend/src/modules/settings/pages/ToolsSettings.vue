@@ -1,7 +1,17 @@
 <template>
   <div class="settings-page">
-    <h2>{{ $t('settings.tools.title') }}</h2>
-    <p class="desc">{{ $t('settings.tools.desc') }}</p>
+    <div class="page-header">
+      <div>
+        <h2>{{ $t('settings.tools.title') }}</h2>
+        <p class="desc">{{ $t('settings.tools.desc') }}</p>
+      </div>
+      <div class="agent-selector-wrapper">
+        <span class="selector-label">{{ $t('settings.agents.title') }}</span>
+        <el-select v-model="selectedAgentId" :placeholder="$t('settings.agents.displayNamePlaceholder') || 'Select Agent'" @change="onAgentChange" style="width: 200px" size="small">
+          <el-option v-for="agent in agents" :key="agent.id" :label="agent.name" :value="agent.id" />
+        </el-select>
+      </div>
+    </div>
 
     <div v-if="loading" class="loading-state">
       <el-skeleton :rows="4" animated />
@@ -32,14 +42,37 @@ import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { listTools, toggleTool } from '@/api/tools'
-import type { ToolInfo } from '@/types'
+import { listAgents } from '@/api/agents'
+import { setAgentHeader } from '@/api/index'
+import type { ToolInfo, AgentSummary } from '@/types'
 
 const { t } = useI18n()
+const agents = ref<AgentSummary[]>([])
+const selectedAgentId = ref<string>('')
 const tools = ref<ToolInfo[]>([])
 const loading = ref(true)
 const togglingSet = ref<Set<string>>(new Set())
 
+async function loadAgents() {
+  try {
+    agents.value = await listAgents()
+    if (agents.value.length > 0) {
+      selectedAgentId.value = agents.value[0].id
+      onAgentChange()
+    }
+  } catch (e: unknown) {
+    ElMessage.error(String(e))
+  }
+}
+
+function onAgentChange() {
+  if (!selectedAgentId.value) return
+  setAgentHeader(selectedAgentId.value)
+  fetchTools()
+}
+
 async function fetchTools() {
+  if (!selectedAgentId.value) return
   loading.value = true
   try {
     tools.value = await listTools()
@@ -63,7 +96,7 @@ async function handleToggle(tool: ToolInfo) {
   }
 }
 
-onMounted(fetchTools)
+onMounted(loadAgents)
 </script>
 
 <style scoped>
@@ -76,17 +109,19 @@ onMounted(fetchTools)
 .desc {
   color: var(--text-3);
   font-size: 13px;
-  margin-bottom: 20px;
+  margin-bottom: 0px;
 }
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; }
+.agent-selector-wrapper { display: flex; align-items: center; gap: 8px; }
+.selector-label { font-size: 12px; font-weight: 500; color: var(--text-3); white-space: nowrap; }
 
 .loading-state { max-width: 600px; }
 .empty-state { color: var(--text-4); font-size: 14px; }
 
 .tools-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-width: 600px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
 }
 
 .tool-card {

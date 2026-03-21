@@ -32,4 +32,12 @@ api.interceptors.response.use(
   },
 )
 
+export const setAgentHeader = (agentId: string) => {
+  if (agentId) {
+    api.defaults.headers.common['X-Agent-Id'] = agentId
+  } else {
+    delete api.defaults.headers.common['X-Agent-Id']
+  }
+}
+
 export default api

@@ -4,6 +4,12 @@
       <div><h1 class="page-title">{{ $t('settings.sessions.title') }}</h1><p class="page-desc">{{ $t('settings.sessions.desc') }}</p></div>
     </div>
     <div class="filters-row">
+      <div class="agent-selector-wrapper">
+        <span class="selector-label" style="font-size: 13px; color: var(--text-3);">{{ $t('settings.agents.title') }}</span>
+        <el-select v-model="selectedAgentId" :placeholder="$t('settings.agents.displayNamePlaceholder') || 'Select Agent'" @change="onAgentChange" style="width: 180px">
+          <el-option v-for="agent in agents" :key="agent.id" :label="agent.name" :value="agent.id" />
+        </el-select>
+      </div>
       <el-input v-model="filterUserId" :placeholder="$t('settings.sessions.filterUser')" clearable style="width: 200px" @change="loadSessions" />
       <el-select v-model="filterChannel" :placeholder="$t('settings.sessions.filterChannel')" clearable style="width: 150px" @change="loadSessions">
         <el-option v-for="ch in channelOptions" :key="ch" :label="ch" :value="ch" />
@@ -47,8 +53,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { listChats, updateChat, deleteChat } from '@/api/chats'
-import type { ChatSpec } from '@/types'
+import { listAgents } from '@/api/agents'
+import { setAgentHeader } from '@/api/index'
+import type { ChatSpec, AgentSummary } from '@/types'
 
+const agents = ref<AgentSummary[]>([])
+const selectedAgentId = ref<string>('')
 const sessions = ref<ChatSpec[]>([])
 const filterUserId = ref('')
 const filterChannel = ref('')
@@ -65,7 +75,26 @@ const pagedSessions = computed(() => {
   return sessions.value.slice(start, start + pageSize)
 })
 
+async function loadAgents() {
+  try {
+    agents.value = await listAgents()
+    if (agents.value.length > 0) {
+      selectedAgentId.value = agents.value[0].id
+      onAgentChange()
+    }
+  } catch (e: unknown) {
+    ElMessage.error(String(e))
+  }
+}
+
+function onAgentChange() {
+  if (!selectedAgentId.value) return
+  setAgentHeader(selectedAgentId.value)
+  loadSessions()
+}
+
 async function loadSessions() {
+  if (!selectedAgentId.value) return
   try {
     sessions.value = await listChats({ user_id: filterUserId.value || undefined, channel: filterChannel.value || undefined })
   } catch (e: unknown) { ElMessage.error('Load failed: ' + (e instanceof Error ? e.message : String(e))) }
@@ -96,14 +125,15 @@ function formatTime(iso: string) {
   return d.toLocaleString()
 }
 
-onMounted(loadSessions)
+onMounted(loadAgents)
 </script>
 
 <style scoped>
 .page-header { margin-bottom: 20px; }
 .page-title { font-size: 22px; font-weight: 700; color: var(--text-1); }
 .page-desc { font-size: 13px; color: var(--text-3); margin-top: 4px; }
-.filters-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.filters-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.agent-selector-wrapper { display: flex; align-items: center; gap: 8px; }
 .total-label { font-size: 13px; color: var(--text-3); margin-left: auto; }
 .table-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
 .pagination-row { display: flex; align-items: center; justify-content: flex-end; padding: 12px 16px; border-top: 1px solid var(--border); gap: 12px; }

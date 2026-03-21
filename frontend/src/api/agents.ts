@@ -1,6 +1,5 @@
 import api from './index'
 import type { 
-  AgentSummary, 
   AgentListResponse, 
   AgentProfileConfig, 
   CreateAgentRequest,
@@ -70,3 +69,15 @@ export const updateAgentSkills = (agentId: string, skillsConfig: Record<string, 
   api.put<{ skills_config: Record<string, boolean> }>(`/agents/${agentId}/skills`, {
     skills_config: skillsConfig,
   }).then(r => r.data)
+
+/**
+ * Get agent's system prompt files (enabled MD files order)
+ */
+export const getSystemPromptFiles = () =>
+  api.get<string[]>('/agent/system-prompt-files').then(r => r.data)
+
+/**
+ * Update agent's system prompt files
+ */
+export const updateSystemPromptFiles = (files: string[]) =>
+  api.put<string[]>('/agent/system-prompt-files', files).then(r => r.data)

@@ -16,33 +16,43 @@
         <el-icon class="is-loading"><Loading /></el-icon>
       </div>
 
-      <div v-else class="agents-grid">
-        <div
-          v-for="agent in agents"
-          :key="agent.id"
-          class="agent-card"
-          :class="{ main: agent.is_main }"
-        >
-          <div class="agent-header">
-            <div class="agent-name-line">
-              <el-icon class="agent-icon"><Avatar /></el-icon>
-              <span class="agent-name">{{ agent.name }}</span>
-              <span v-if="agent.is_main" class="agent-badge badge-main">Main</span>
-            </div>
-          </div>
-
-          <div v-if="agent.description" class="agent-desc">{{ agent.description }}</div>
-
-          <div class="agent-actions">
-            <el-button size="small" text type="primary" @click="openWorkspace(agent)">
-              <el-icon><EditPen /></el-icon>
-              {{ $t('settings.agents.workspace') }}
-            </el-button>
-            <el-button v-if="!agent.is_main" size="small" text type="danger" @click="confirmDelete(agent)">
-              <el-icon><Delete /></el-icon>
-            </el-button>
-          </div>
-        </div>
+      <div v-else class="agents-table-container">
+        <el-table :data="agents" style="width: 100%">
+          <el-table-column :label="$t('settings.agents.displayName')" min-width="200">
+            <template #default="{ row }">
+              <div class="agent-name-cell">
+                <el-icon class="agent-icon"><Avatar /></el-icon>
+                <span class="agent-name">{{ row.name }}</span>
+                <span v-if="row.is_main" class="agent-badge badge-main">Main</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="id" label="ID" width="120" />
+          <el-table-column prop="description" :label="$t('settings.agents.description')" min-width="250">
+            <template #default="{ row }">
+              <span class="agent-desc-cell">{{ row.description }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="workspace_dir" label="Workspace Path" min-width="280">
+            <template #default="{ row }">
+              <span class="agent-path-cell">{{ row.workspace_dir }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('common.actions')" width="200" fixed="right">
+            <template #default="{ row }">
+              <div class="agent-table-actions">
+                <el-button size="small" text type="primary" @click="openEditDialog(row)">
+                  <el-icon><EditPen /></el-icon>
+                  {{ $t('common.edit') }}
+                </el-button>
+                <el-button v-if="!row.is_main" size="small" text type="danger" @click="confirmDelete(row)">
+                  <el-icon><Delete /></el-icon>
+                  {{ $t('common.delete') }}
+                </el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
       </div>
     </section>
 
@@ -55,6 +65,10 @@
         <el-form-item :label="$t('settings.agents.description')">
           <el-input v-model="createForm.description" type="textarea" :rows="3" :placeholder="$t('settings.agents.descriptionPlaceholder')" />
         </el-form-item>
+        <el-form-item label="Workspace Path">
+          <el-input v-model="createForm.workspace_dir" placeholder="e.g. ~/.haibot/workspaces/my-agent" />
+          <div class="form-hint">Leave empty to auto-generate in ~/.haibot/workspaces/&lt;id&gt;</div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="createDialogVisible = false">{{ $t('common.cancel') }}</el-button>
@@ -64,64 +78,39 @@
       </template>
     </el-dialog>
 
-    <!-- ═══════════════ Workspace Editor Dialog ═══════════════ -->
+    <!-- ═══════════════ Edit Agent Dialog ═══════════════ -->
     <el-dialog
-      v-model="workspaceDialogVisible"
-      :title="`${workspaceAgent?.name} — ${$t('settings.agents.workspace')}`"
-      width="720px"
+      v-model="editDialogVisible"
+      :title="`Edit Agent - ${editForm.name}`"
+      width="500px"
       destroy-on-close
-      top="5vh"
     >
-      <div class="workspace-editor">
-        <div class="workspace-tabs">
-          <button
-            v-for="f in workspaceFiles"
-            :key="f.filename"
-            class="ws-tab"
-            :class="{ active: activeFile === f.filename }"
-            @click="selectFile(f.filename)"
-          >
-            {{ f.filename }}
-          </button>
-        </div>
-        <div v-if="loadingFile" class="ws-loading">
-          <el-icon class="is-loading"><Loading /></el-icon>
-        </div>
-        <el-input
-          v-else
-          v-model="fileContent"
-          type="textarea"
-          :rows="20"
-          class="ws-textarea"
-        />
-        <!-- Skills config section -->
-        <div v-if="workspaceAgent" class="agent-skills-section">
-          <div class="section-title">{{ $t('settings.agents.skills') }}</div>
-          <div v-if="agentSkills" class="skills-list">
-            <div
-              v-for="(enabled, skillName) in agentSkills"
-              :key="skillName"
-              class="skill-row"
-            >
-              <span class="skill-name">{{ skillName }}</span>
-              <el-switch
-                :model-value="enabled"
-                @change="(val: boolean) => toggleSkill(skillName, val)"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+      <el-form label-position="top">
+        <el-form-item label="ID">
+          <el-input v-model="editForm.id" disabled />
+        </el-form-item>
+        <el-form-item label="Name" required>
+          <el-input v-model="editForm.name" />
+        </el-form-item>
+        <el-form-item :label="$t('settings.agents.description')">
+          <el-input v-model="editForm.description" type="textarea" :rows="3" />
+        </el-form-item>
+        <el-form-item label="Workspace Path">
+          <el-input v-model="editForm.workspace_dir" disabled />
+        </el-form-item>
+      </el-form>
       <template #footer>
-        <el-button @click="workspaceDialogVisible = false">{{ $t('common.close') }}</el-button>
-        <el-button type="primary" :loading="savingFile" @click="saveFile">{{ $t('common.save') }}</el-button>
+        <el-button @click="editDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="editing" :disabled="!editForm.name" @click="handleEditSave">
+          {{ $t('common.save') }}
+        </el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Avatar, Delete, EditPen, Loading, Plus } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
@@ -129,13 +118,9 @@ import {
   listAgents,
   createAgent as apiCreate,
   deleteAgent as apiDelete,
-  listAgentFiles,
-  readAgentFile,
-  writeAgentFile,
-  getAgentSkills,
-  updateAgentSkills,
+  updateAgent as apiUpdate,
 } from '@/api/agents'
-import type { AgentInfo, MdFileInfo } from '@/types'
+import type { AgentInfo } from '@/types'
 
 const { t } = useI18n()
 
@@ -144,18 +129,13 @@ const loading = ref(false)
 
 // ── Create ──
 const createDialogVisible = ref(false)
-const createForm = reactive({ name: '', description: '' })
+const createForm = reactive({ name: '', description: '', workspace_dir: '' })
 const creating = ref(false)
 
-// ── Workspace Editor ──
-const workspaceDialogVisible = ref(false)
-const workspaceAgent = ref<AgentInfo | null>(null)
-const agentSkills = ref<Record<string, boolean> | null>(null)
-const workspaceFiles = ref<MdFileInfo[]>([])
-const activeFile = ref('')
-const fileContent = ref('')
-const loadingFile = ref(false)
-const savingFile = ref(false)
+// ── Edit Profile ──
+const editDialogVisible = ref(false)
+const editForm = reactive({ id: '', name: '', description: '', workspace_dir: '' })
+const editing = ref(false)
 
 async function loadData() {
   loading.value = true
@@ -172,6 +152,7 @@ async function loadData() {
 function openCreateDialog() {
   createForm.name = ''
   createForm.description = ''
+  createForm.workspace_dir = ''
   createDialogVisible.value = true
 }
 
@@ -181,6 +162,7 @@ async function handleCreate() {
     await apiCreate({
       name: createForm.name,
       description: createForm.description || undefined,
+      workspace_dir: createForm.workspace_dir || undefined,
     })
     createDialogVisible.value = false
     ElMessage.success(t('common.createSuccess'))
@@ -210,75 +192,32 @@ async function confirmDelete(agent: AgentInfo) {
   }
 }
 
-// ── Workspace Editor ──
-async function openWorkspace(agent: AgentInfo) {
-  workspaceAgent.value = agent
-  workspaceDialogVisible.value = true
-  loadingFile.value = true
+// ── Edit Profile ──
+function openEditDialog(agent: AgentInfo) {
+  editForm.id = agent.id
+  editForm.name = agent.name
+  editForm.description = agent.description || ''
+  editForm.workspace_dir = agent.workspace_dir || ''
+  editDialogVisible.value = true
+}
+
+async function handleEditSave() {
+  editing.value = true
   try {
-    workspaceFiles.value = await listAgentFiles(agent.id)
-    if (workspaceFiles.value.length > 0) {
-      await selectFile(workspaceFiles.value[0].filename)
+    const data: any = { name: editForm.name }
+    if (editForm.description !== undefined) {
+      data.description = editForm.description
     }
-  } catch (e: unknown) {
-    ElMessage.error('Load files failed: ' + (e instanceof Error ? e.message : String(e)))
-  } finally {
-    loadingFile.value = false
-  }
-}
-
-async function selectFile(filename: string) {
-  if (!workspaceAgent.value) return
-  activeFile.value = filename
-  loadingFile.value = true
-  try {
-    const data = await readAgentFile(workspaceAgent.value.id, filename)
-    fileContent.value = data.content
-  } catch (e: unknown) {
-    ElMessage.error('Read failed: ' + (e instanceof Error ? e.message : String(e)))
-  } finally {
-    loadingFile.value = false
-  }
-}
-
-async function saveFile() {
-  if (!workspaceAgent.value || !activeFile.value) return
-  savingFile.value = true
-  try {
-    await writeAgentFile(workspaceAgent.value.id, activeFile.value, fileContent.value)
+    await apiUpdate(editForm.id, data)
     ElMessage.success(t('common.saveSuccess'))
+    editDialogVisible.value = false
+    await loadData()
   } catch (e: unknown) {
     ElMessage.error(t('common.saveFailed') + ': ' + (e instanceof Error ? e.message : String(e)))
   } finally {
-    savingFile.value = false
+    editing.value = false
   }
 }
-
-async function loadAgentSkills(agentId: string) {
-  try {
-    const data = await getAgentSkills(agentId)
-    agentSkills.value = data.skills_config
-  } catch (e: unknown) {
-    ElMessage.error('Failed to load agent skills: ' + (e instanceof Error ? e.message : String(e)))
-  }
-}
-
-async function toggleSkill(skillName: string, enabled: boolean) {
-  if (!workspaceAgent.value || !agentSkills.value) return
-  const prev = agentSkills.value[skillName]
-  agentSkills.value[skillName] = enabled
-  try {
-    await updateAgentSkills(workspaceAgent.value.id, agentSkills.value)
-  } catch (e: unknown) {
-    agentSkills.value[skillName] = prev
-    ElMessage.error('Failed to update skill: ' + (e instanceof Error ? e.message : String(e)))
-  }
-}
-
-watch(workspaceAgent, (agent) => {
-  if (agent) loadAgentSkills(agent.id)
-  else agentSkills.value = null
-})
 
 onMounted(loadData)
 </script>
@@ -292,22 +231,17 @@ onMounted(loadData)
 
 .loading-state { display: flex; justify-content: center; padding: 40px 0; color: var(--text-4); font-size: 24px; }
 
-/* ── Agent Cards ── */
-.agents-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-.agent-card {
-  background: var(--bg-card);
+/* ── Agent Table ── */
+.agents-table-container {
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 18px;
-  transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-card);
 }
-.agent-card:hover { box-shadow: var(--shadow-md); }
-.agent-card.main { border-color: var(--primary); }
 
-.agent-header { margin-bottom: 8px; }
-.agent-name-line { display: flex; align-items: center; gap: 8px; }
-.agent-icon { font-size: 20px; color: var(--primary); }
-.agent-name { font-size: 15px; font-weight: 600; color: var(--text-1); }
+.agent-name-cell { display: flex; align-items: center; gap: 8px; }
+.agent-icon { font-size: 18px; color: var(--text-3); }
+.agent-name { font-size: 14px; font-weight: 500; color: var(--text-1); }
 .agent-badge {
   font-size: 11px; font-weight: 500;
   padding: 1px 8px; border-radius: var(--radius-sm);
@@ -315,67 +249,15 @@ onMounted(loadData)
 }
 .badge-main { color: #7c3aed; border-color: #ddd6fe; background: #f5f3ff; }
 
-.agent-desc { font-size: 12px; color: var(--text-3); margin-bottom: 8px; }
+.agent-desc-cell, .agent-path-cell { font-size: 13px; color: var(--text-2); }
+.agent-path-cell { font-family: Consolas, monospace; font-size: 12px; }
 
-.agent-files { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
-.file-tag {
-  font-size: 11px; color: var(--text-3);
-  background: var(--bg); padding: 2px 8px;
-  border-radius: var(--radius-sm);
-  font-family: Consolas, monospace;
+.agent-table-actions {
+  display: flex; gap: 4px; align-items: center;
 }
 
-.agent-actions {
-  margin-top: 8px; border-top: 1px solid var(--border);
-  padding-top: 10px; display: flex; gap: 4px; justify-content: flex-end;
-}
-
-/* ── Create dialog ── */
+/* ── Dialogs ── */
 .form-hint { font-size: 12px; color: var(--text-4); margin-top: 4px; }
-
-/* ── Workspace Editor ── */
-.workspace-editor { display: flex; flex-direction: column; gap: 12px; }
-.workspace-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
-.ws-tab {
-  padding: 6px 14px; border: 1px solid var(--border);
-  border-radius: var(--radius-sm); background: var(--bg);
-  font-size: 12px; color: var(--text-2); cursor: pointer;
-  font-family: Consolas, monospace;
-  transition: all var(--transition-fast);
-}
-.ws-tab:hover { border-color: var(--primary); color: var(--primary); }
-.ws-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
-
-.ws-loading { display: flex; justify-content: center; padding: 40px; color: var(--text-4); }
-
-.ws-textarea :deep(.el-textarea__inner) {
-  font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
-  font-size: 13px;
-  line-height: 1.6;
-  background: var(--bg);
-  border-radius: var(--radius);
-}
-
-/* ── Skills section ── */
-.agent-skills-section {
-  margin-top: 16px;
-}
-
-.skills-list {
-  margin-top: 8px;
-}
-
-.skill-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 0;
-}
-
-.skill-name {
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-}
 
 /* ── Dark mode ── */
 [data-theme="dark"] .badge-main { color: #a78bfa; border-color: rgba(124,58,237,.3); background: rgba(124,58,237,.1); }
