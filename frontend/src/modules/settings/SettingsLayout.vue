@@ -82,9 +82,11 @@ const navItems = computed(() => [
   { path: 'sessions', label: t('settings.sessions.title'), icon: 'UserFilled' },
   { path: 'workspace', label: t('settings.workspace.title'), icon: 'Suitcase' },
   { path: 'skills', label: t('settings.skills.title'), icon: 'MagicStick' },
+  { path: 'tools', label: t('settings.tools.title'), icon: 'SetUp' },
   { path: 'envs', label: t('settings.envs.title'), icon: 'Setting' },
   { path: 'crons', label: t('settings.crons.title'), icon: 'AlarmClock' },
   { path: 'group-chats', label: t('settings.groupChats.title'), icon: 'ChatDotRound' },
+  { path: 'token-usage', label: t('settings.tokenUsage.title'), icon: 'DataAnalysis' },
 ])
 </script>
 

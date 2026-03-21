@@ -1,4 +1,5 @@
 // ── Chat / Session ──────────────────────────────────────────────────────────
+
 export interface ChatSpec {
   id: string
   name: string
@@ -8,10 +9,11 @@ export interface ChatSpec {
   created_at: string
   updated_at: string
   meta: Record<string, unknown>
+  status?: 'idle' | 'running'
 }
 
 export interface ContentItem {
-  type: 'text' | 'image' | 'data' | 'file' | 'audio' | 'video'
+  type: 'text' | 'image' | 'data' | 'file' | 'audio' | 'video' | 'refusal'
   text?: string
   url?: string
   data?: Record<string, unknown>
@@ -20,10 +22,15 @@ export interface ContentItem {
   msg_id?: string
   status?: string
   object?: string
+  refusal?: string
+  sequence_number?: number
+  image_url?: { url: string }
+  video_url?: string
+  format?: string
 }
 
 export interface AgentMessage {
-  id?: string
+  id: string
   object?: string
   type: string
   status?: string
@@ -34,6 +41,15 @@ export interface AgentMessage {
   output?: string
   error?: { message: string }
   sequence_number?: number
+  code?: string
+  message?: string
+  usage?: Record<string, number>
+  metadata?: Record<string, unknown>
+}
+
+export interface ChatHistory {
+  messages: AgentMessage[]
+  status: 'idle' | 'running'
 }
 
 // UI display model

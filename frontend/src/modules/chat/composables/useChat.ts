@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { streamQuery } from '@/api/chats'
+import { streamQuery, stopChat } from '@/api/chats'
 import type { DisplayMessage, DisplayBlock, ContentItem } from '@/types'
 import { uuidv4 } from '@/utils/uuid'
 
@@ -9,6 +9,7 @@ export function useChat() {
   const displayMessages = ref<DisplayMessage[]>([])
   const streaming = ref(false)
   const inputText = ref('')
+  const activeChatId = ref<string | null>(null)
 
   let abortController: AbortController | null = null
 
@@ -106,6 +107,13 @@ export function useChat() {
   // ── Stop streaming ─────────────────────────────────────────────────────
   function stopStreaming() {
     abortController?.abort()
+    if (activeChatId.value) {
+      stopChat(activeChatId.value).catch(() => {})
+    }
+  }
+
+  function setChatId(id: string | null) {
+    activeChatId.value = id
   }
 
   // ── Send message ───────────────────────────────────────────────────────
@@ -118,15 +126,19 @@ export function useChat() {
     onError?: (e: Error) => void,
     agentId?: string,
     groupId?: string,
+    reconnect?: boolean,
   ) {
-    if (!text.trim() || streaming.value) return
+    if (!reconnect && (!text.trim() || streaming.value)) return
+    if (reconnect && streaming.value) return
 
-    // Add user message
-    displayMessages.value.push({
-      id: uuidv4(),
-      role: 'user',
-      blocks: [{ id: uuidv4(), kind: 'text', text }],
-    })
+    if (!reconnect) {
+      // Add user message
+      displayMessages.value.push({
+        id: uuidv4(),
+        role: 'user',
+        blocks: [{ id: uuidv4(), kind: 'text', text }],
+      })
+    }
 
     // Add assistant shell
     displayMessages.value.push({ id: uuidv4(), role: 'assistant', blocks: [], streaming: true })
@@ -390,6 +402,7 @@ export function useChat() {
       abortController.signal,
       agentId,
       groupId,
+      reconnect,
     )
   }
 
@@ -397,10 +410,12 @@ export function useChat() {
     displayMessages,
     streaming,
     inputText,
+    activeChatId,
     convertHistoryToDisplay,
     setMessages,
     clearMessages,
     stopStreaming,
+    setChatId,
     sendMessage,
   }
 }

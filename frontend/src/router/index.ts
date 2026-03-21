@@ -67,6 +67,16 @@ export default createRouter({
           name: 'settings-group-chats',
           component: () => import('@/modules/settings/pages/GroupChatSettings.vue'),
         },
+        {
+          path: 'tools',
+          name: 'settings-tools',
+          component: () => import('@/modules/settings/pages/ToolsSettings.vue'),
+        },
+        {
+          path: 'token-usage',
+          name: 'settings-token-usage',
+          component: () => import('@/modules/settings/pages/TokenUsageSettings.vue'),
+        },
       ],
     },
   ],

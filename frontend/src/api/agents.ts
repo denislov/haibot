@@ -1,34 +1,71 @@
 import api from './index'
-import type { AgentInfo } from '@/types'
+import type { 
+  AgentSummary, 
+  AgentListResponse, 
+  AgentProfileConfig, 
+  CreateAgentRequest,
+  MdFileInfo,
+  MdFileContent
+} from '@/types'
 
+/**
+ * List all available agents
+ */
 export const listAgents = () =>
-  api.get<AgentInfo[]>('/agents').then((r) => r.data)
+  api.get<AgentListResponse>('/agents').then((r) => r.data.agents)
 
-export const createAgent = (data: { id: string; name: string; description?: string }) =>
-  api.post<AgentInfo>('/agents', data).then((r) => r.data)
+/**
+ * Create a new agent
+ */
+export const createAgent = (data: CreateAgentRequest) =>
+  api.post<{ id: string; workspace_dir: string }>('/agents', data).then((r) => r.data)
 
+/**
+ * Get detailed agent configuration
+ */
 export const getAgent = (id: string) =>
-  api.get<AgentInfo>(`/agents/${id}`).then((r) => r.data)
+  api.get<AgentProfileConfig>(`/agents/${id}`).then((r) => r.data)
 
-export const updateAgent = (id: string, data: { name?: string; description?: string }) =>
-  api.put<AgentInfo>(`/agents/${id}`, data).then((r) => r.data)
+/**
+ * Update agent configuration
+ */
+export const updateAgent = (id: string, data: Partial<AgentProfileConfig>) =>
+  api.put<AgentProfileConfig>(`/agents/${id}`, data).then((r) => r.data)
 
+/**
+ * Delete an agent
+ */
 export const deleteAgent = (id: string) =>
   api.delete<{ message: string }>(`/agents/${id}`).then((r) => r.data)
 
+/**
+ * List files in an agent's workspace
+ */
 export const listAgentFiles = (agentId: string) =>
-  api.get<Array<{ name: string; size: number }>>(`/agents/${agentId}/files`).then((r) => r.data)
+  api.get<MdFileInfo[]>(`/agents/${agentId}/files`).then((r) => r.data)
 
+/**
+ * Read a file from an agent's workspace
+ */
 export const readAgentFile = (agentId: string, filename: string) =>
-  api.get<{ name: string; content: string }>(`/agents/${agentId}/files/${filename}`).then((r) => r.data)
+  api.get<MdFileContent>(`/agents/${agentId}/files/${filename}`).then((r) => r.data)
 
+/**
+ * Write a file to an agent's workspace
+ */
 export const writeAgentFile = (agentId: string, filename: string, content: string) =>
-  api.put<{ written: boolean }>(`/agents/${agentId}/files/${filename}`, { content }).then((r) => r.data)
+  api.put<MdFileInfo>(`/agents/${agentId}/files/${filename}`, { content }).then((r) => r.data)
 
+/**
+ * Get agent's skill configuration
+ */
 export const getAgentSkills = (agentId: string) =>
   api.get<{ skills_config: Record<string, boolean> }>(`/agents/${agentId}/skills`)
     .then(r => r.data)
 
+/**
+ * Update agent's skill configuration
+ */
 export const updateAgentSkills = (agentId: string, skillsConfig: Record<string, boolean>) =>
   api.put<{ skills_config: Record<string, boolean> }>(`/agents/${agentId}/skills`, {
     skills_config: skillsConfig,

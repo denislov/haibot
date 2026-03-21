@@ -33,10 +33,6 @@
 
           <div v-if="agent.description" class="agent-desc">{{ agent.description }}</div>
 
-          <div class="agent-files">
-            <span v-for="f in agent.files" :key="f" class="file-tag">{{ f }}</span>
-          </div>
-
           <div class="agent-actions">
             <el-button size="small" text type="primary" @click="openWorkspace(agent)">
               <el-icon><EditPen /></el-icon>
@@ -53,10 +49,6 @@
     <!-- ═══════════════ Create Agent Dialog ═══════════════ -->
     <el-dialog v-model="createDialogVisible" :title="$t('settings.agents.createAgent')" width="440px" destroy-on-close>
       <el-form label-position="top">
-        <el-form-item :label="$t('settings.agents.agentId')" required>
-          <el-input v-model="createForm.id" :placeholder="$t('settings.agents.agentIdPlaceholder')" />
-          <div class="form-hint">{{ $t('settings.agents.agentIdHint') }}</div>
-        </el-form-item>
         <el-form-item :label="$t('settings.agents.displayName')" required>
           <el-input v-model="createForm.name" :placeholder="$t('settings.agents.displayNamePlaceholder')" />
         </el-form-item>
@@ -66,7 +58,7 @@
       </el-form>
       <template #footer>
         <el-button @click="createDialogVisible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="creating" :disabled="!createForm.id || !createForm.name" @click="handleCreate">
+        <el-button type="primary" :loading="creating" :disabled="!createForm.name" @click="handleCreate">
           {{ $t('common.create') }}
         </el-button>
       </template>
@@ -84,12 +76,12 @@
         <div class="workspace-tabs">
           <button
             v-for="f in workspaceFiles"
-            :key="f.name"
+            :key="f.filename"
             class="ws-tab"
-            :class="{ active: activeFile === f.name }"
-            @click="selectFile(f.name)"
+            :class="{ active: activeFile === f.filename }"
+            @click="selectFile(f.filename)"
           >
-            {{ f.name }}
+            {{ f.filename }}
           </button>
         </div>
         <div v-if="loadingFile" class="ws-loading">
@@ -143,7 +135,7 @@ import {
   getAgentSkills,
   updateAgentSkills,
 } from '@/api/agents'
-import type { AgentInfo } from '@/types'
+import type { AgentInfo, MdFileInfo } from '@/types'
 
 const { t } = useI18n()
 
@@ -152,14 +144,14 @@ const loading = ref(false)
 
 // ── Create ──
 const createDialogVisible = ref(false)
-const createForm = reactive({ id: '', name: '', description: '' })
+const createForm = reactive({ name: '', description: '' })
 const creating = ref(false)
 
 // ── Workspace Editor ──
 const workspaceDialogVisible = ref(false)
 const workspaceAgent = ref<AgentInfo | null>(null)
 const agentSkills = ref<Record<string, boolean> | null>(null)
-const workspaceFiles = ref<Array<{ name: string; size: number }>>([])
+const workspaceFiles = ref<MdFileInfo[]>([])
 const activeFile = ref('')
 const fileContent = ref('')
 const loadingFile = ref(false)
@@ -178,7 +170,6 @@ async function loadData() {
 
 // ── Create ──
 function openCreateDialog() {
-  createForm.id = ''
   createForm.name = ''
   createForm.description = ''
   createDialogVisible.value = true
@@ -188,7 +179,6 @@ async function handleCreate() {
   creating.value = true
   try {
     await apiCreate({
-      id: createForm.id,
       name: createForm.name,
       description: createForm.description || undefined,
     })
@@ -228,7 +218,7 @@ async function openWorkspace(agent: AgentInfo) {
   try {
     workspaceFiles.value = await listAgentFiles(agent.id)
     if (workspaceFiles.value.length > 0) {
-      await selectFile(workspaceFiles.value[0].name)
+      await selectFile(workspaceFiles.value[0].filename)
     }
   } catch (e: unknown) {
     ElMessage.error('Load files failed: ' + (e instanceof Error ? e.message : String(e)))

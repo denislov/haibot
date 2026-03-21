@@ -1,4 +1,5 @@
 // ── Models / Providers ────────────────────────────────────────────────────────
+
 export interface ModelInfo {
   id: string
   name: string
@@ -7,15 +8,19 @@ export interface ModelInfo {
 export interface ProviderInfo {
   id: string
   name: string
-  api_key_prefix: string
+  base_url: string
+  api_key: string
+  chat_model: string
   models: ModelInfo[]
   extra_models: ModelInfo[]
-  is_custom: boolean
+  api_key_prefix: string
   is_local: boolean
-  needs_base_url?: boolean
-  has_api_key: boolean
-  current_api_key: string
-  current_base_url: string
+  freeze_url: boolean
+  require_api_key: boolean
+  is_custom: boolean
+  support_model_discovery: boolean
+  support_connection_check: boolean
+  generate_kwargs: Record<string, any>
 }
 
 export interface ModelSlotConfig {
@@ -24,5 +29,5 @@ export interface ModelSlotConfig {
 }
 
 export interface ActiveModelsInfo {
-  active_llm: ModelSlotConfig
+  active_llm: ModelSlotConfig | null
 }

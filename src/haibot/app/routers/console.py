@@ -35,9 +35,21 @@ def _extract_session_and_payload(request_data: Union[AgentRequest, dict]):
     run_key must be ChatSpec.id (chat_id) so it matches list_chats/get_chat.
     """
     if isinstance(request_data, AgentRequest):
-        channel_id = request_data.channel or "console"
-        sender_id = request_data.user_id or "default"
-        session_id = request_data.session_id or "default"
+        # Use getattr to avoid AttributeError if fields are missing in some versions
+        channel_id = getattr(request_data, "channel", None)
+        sender_id = getattr(request_data, "user_id", "default")
+        session_id = getattr(request_data, "session_id", "default")
+        metadata = getattr(request_data, "metadata", {})
+
+        # Pydantic V2 extra fields are in model_extra
+        if hasattr(request_data, "model_extra") and request_data.model_extra:
+            extra = request_data.model_extra
+            if channel_id is None:
+                channel_id = extra.get("channel")
+            if not metadata:
+                metadata = extra.get("metadata", {})
+
+        channel_id = channel_id or "console"
         content_parts = (
             list(request_data.input[0].content) if request_data.input else []
         )
@@ -45,6 +57,7 @@ def _extract_session_and_payload(request_data: Union[AgentRequest, dict]):
         channel_id = request_data.get("channel", "console")
         sender_id = request_data.get("user_id", "default")
         session_id = request_data.get("session_id", "default")
+        metadata = request_data.get("metadata", {})
         input_data = request_data.get("input", [])
         content_parts = []
         for content_part in input_data:
@@ -60,6 +73,7 @@ def _extract_session_and_payload(request_data: Union[AgentRequest, dict]):
         "meta": {
             "session_id": session_id,
             "user_id": sender_id,
+            **metadata,
         },
     }
     return native_payload
@@ -98,7 +112,9 @@ async def post_console_chat(
     if len(native_payload["content_parts"]) > 0:
         content = native_payload["content_parts"][0]
         if content:
-            name = content.text[:10]
+            name = getattr(content, "text", "")[:10]
+            if not name and isinstance(content, dict):
+                name = content.get("text", "")[:10]
         else:
             name = "Media Message"
     chat = await workspace.chat_manager.get_or_create_chat(
@@ -112,6 +128,10 @@ async def post_console_chat(
     is_reconnect = False
     if isinstance(request_data, dict):
         is_reconnect = request_data.get("reconnect") is True
+    else:
+        is_reconnect = getattr(request_data, "reconnect", False) is True
+        if not is_reconnect and hasattr(request_data, "model_extra") and request_data.model_extra:
+            is_reconnect = request_data.model_extra.get("reconnect") is True
 
     if is_reconnect:
         queue = await tracker.attach(chat.id)

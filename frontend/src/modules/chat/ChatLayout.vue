@@ -205,6 +205,7 @@ async function selectChat(selected: ChatSpec) {
     selectedContact.value = { type: 'agent', id: String(selected.meta.agent_id) }
   }
   chatStore.setActiveChat(selected)
+  chat.setChatId(selected.id)
   chat.clearMessages()
   // Only update selectedAgentId for agent chats, not group chats
   if (!selected.meta?.group_id) {
@@ -217,6 +218,24 @@ async function selectChat(selected: ChatSpec) {
     const display = chat.convertHistoryToDisplay(history.messages as unknown as Record<string, unknown>[])
     chat.setMessages(display)
     chatWindowRef.value?.scrollToBottom()
+
+    // Reconnect if chat is still running on server
+    if (history.status === 'running') {
+      const currentAgentId = (selected.meta?.agent_id as string) || selectedAgentId.value
+      const activeGroupId = currentGroupId.value || undefined
+
+      chat.sendMessage(
+        '',
+        selected.session_id,
+        selected.user_id,
+        () => chatWindowRef.value?.scrollIfNearBottom(),
+        () => chatStore.loadChats(),
+        (e) => ElMessage.error(t('chat.requestFailed') + ': ' + e.message),
+        activeGroupId ? undefined : currentAgentId,
+        activeGroupId ?? undefined,
+        true, // reconnect
+      )
+    }
   } catch {
     // no history
   } finally {
