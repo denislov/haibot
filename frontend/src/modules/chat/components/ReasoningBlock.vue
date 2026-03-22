@@ -2,11 +2,13 @@
   <div class="reasoning-block">
     <button class="reasoning-header" @click="$emit('toggle')">
       <el-icon class="reasoning-icon"><ChatLineRound /></el-icon>
-      <span class="reasoning-label">{{ $t('chat.thinking') }}</span>
+      <span class="reasoning-label" :class="{ pulsing: streaming && !text }">{{ $t('chat.thinking') }}</span>
       <el-icon class="reasoning-chevron" :class="{ open: expanded }"><ArrowDown /></el-icon>
     </button>
-    <div v-if="expanded" class="reasoning-body">
-      <MarkdownBlock class="reasoning-text" :text="text || ''" />
+    <div class="reasoning-body" :class="{ collapsed: !expanded }">
+      <div class="reasoning-body-inner">
+        <MarkdownBlock class="reasoning-text" :text="text || ''" />
+      </div>
     </div>
   </div>
 </template>
@@ -17,6 +19,7 @@ import MarkdownBlock from './MarkdownBlock.vue'
 defineProps<{
   text?: string
   expanded?: boolean
+  streaming?: boolean
 }>()
 
 defineEmits<{ toggle: [] }>()
@@ -54,6 +57,14 @@ defineEmits<{ toggle: [] }>()
   color: var(--primary);
 }
 
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.reasoning-label.pulsing {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
 .reasoning-chevron {
   font-size: 12px !important;
   color: var(--primary);
@@ -63,6 +74,17 @@ defineEmits<{ toggle: [] }>()
 .reasoning-chevron.open { transform: rotate(180deg); }
 
 .reasoning-body {
+  max-height: 2000px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height var(--transition-expand), opacity var(--transition-expand);
+}
+.reasoning-body.collapsed {
+  max-height: 0;
+  opacity: 0;
+}
+
+.reasoning-body-inner {
   padding: 8px 12px 10px;
   border-top: 1px solid var(--primary-light);
 }

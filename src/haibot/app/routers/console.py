@@ -141,6 +141,49 @@ async def post_console_chat(
                 detail="No running chat for this session",
             )
     else:
+        # ── Regenerate: truncate memory to last user message ──
+        is_regenerate = False
+        if isinstance(request_data, dict):
+            is_regenerate = request_data.get("regenerate") is True
+        else:
+            is_regenerate = getattr(request_data, "regenerate", False) is True
+            if (
+                not is_regenerate
+                and hasattr(request_data, "model_extra")
+                and request_data.model_extra
+            ):
+                is_regenerate = (
+                    request_data.model_extra.get("regenerate") is True
+                )
+
+        if is_regenerate:
+            try:
+                state = (
+                    await workspace.runner.session.get_session_state_dict(
+                        session_id, native_payload["sender_id"]
+                    )
+                )
+                memory = state.get("agent", {}).get("memory", {})
+                content_list = memory.get("content", [])
+                last_user_idx = None
+                for i in range(len(content_list) - 1, -1, -1):
+                    if content_list[i].get("role") == "user":
+                        last_user_idx = i
+                        break
+                if last_user_idx is not None:
+                    memory["content"] = content_list[: last_user_idx]
+                    await workspace.runner.session.update_session_state(
+                        session_id,
+                        "agent.memory",
+                        memory,
+                        user_id=native_payload["sender_id"],
+                    )
+            except Exception:
+                logger.warning(
+                    "Failed to truncate memory for regenerate",
+                    exc_info=True,
+                )
+
         queue, _ = await tracker.attach_or_start(
             chat.id,
             native_payload,

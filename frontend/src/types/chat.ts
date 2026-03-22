@@ -52,6 +52,18 @@ export interface ChatHistory {
   status: 'idle' | 'running'
 }
 
+export interface FileAttachment {
+  id: string
+  file: File
+  name: string
+  size: number
+  type: string
+  previewUrl?: string
+  uploadedUrl?: string
+  uploading: boolean
+  error?: string
+}
+
 // UI display model
 export interface DisplayBlock {
   id: string
@@ -72,4 +84,5 @@ export interface DisplayMessage {
   streaming?: boolean
   agentId?: string     // set for all messages in group chat mode
   agentName?: string   // display name badge
+  attachments?: { name: string; url: string; type: string }[]
 }

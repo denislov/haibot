@@ -58,12 +58,17 @@
           v-else
           ref="chatWindowRef"
           :messages="chat.displayMessages.value"
+          :streaming="chat.streaming.value"
+          @regenerate="handleRegenerate"
         />
         <ChatInput
           v-model="chat.inputText.value"
           :streaming="chat.streaming.value"
+          :attachments="attachments"
           @send="sendMessage"
           @stop="chat.stopStreaming(selectedAgentId)"
+          @add-files="handleAddFiles"
+          @remove-attachment="handleRemoveAttachment"
         />
       </template>
 
@@ -113,9 +118,10 @@ import { useStorage } from '@vueuse/core'
 import { useChatStore } from '@/stores/chat'
 import { useChat } from './composables/useChat'
 import { createChat } from '@/api/chats'
+import { uploadFile } from '@/api/console'
 import { listAgents } from '@/api/agents'
 import { listGroupChats } from '@/api/group_chats'
-import type { ChatSpec, AgentInfo } from '@/types'
+import type { ChatSpec, AgentInfo, FileAttachment } from '@/types'
 import type { GroupChatConfig } from '@/types/group_chat'
 import { uuidv4 } from '@/utils/uuid'
 import ContactSidebar from './components/ContactSidebar.vue'
@@ -138,6 +144,9 @@ const renameDialogVisible = ref(false)
 const renameName = ref('')
 const renamingChatId = ref<string | null>(null)
 const historyLoading = ref(false)
+
+// ── File attachments ──
+const attachments = ref<FileAttachment[]>([])
 
 // ── Agent selector ──
 const agentsList = ref<AgentInfo[]>([])
@@ -163,6 +172,51 @@ const contactChats = computed(() => {
   })
 })
 
+// ── File upload handling ──────────────────────────────────────────────────
+
+function handleAddFiles(files: File[]) {
+  const currentAgentId = chatStore.activeChat?.meta?.agent_id
+    ? String(chatStore.activeChat.meta.agent_id)
+    : selectedAgentId.value
+
+  for (const file of files) {
+    if (file.size > 10 * 1024 * 1024) {
+      ElMessage.warning(t('chat.fileTooLarge'))
+      continue
+    }
+    const att: FileAttachment = {
+      id: uuidv4(),
+      file,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+      uploading: true,
+    }
+    attachments.value.push(att)
+
+    uploadFile(file, currentAgentId)
+      .then((res) => {
+        att.uploadedUrl = res.url
+        att.uploading = false
+      })
+      .catch((e) => {
+        att.error = e instanceof Error ? e.message : String(e)
+        att.uploading = false
+        ElMessage.error(t('chat.uploadFailed'))
+      })
+  }
+}
+
+function handleRemoveAttachment(id: string) {
+  const idx = attachments.value.findIndex((a) => a.id === id)
+  if (idx !== -1) {
+    const att = attachments.value[idx]
+    if (att.previewUrl) URL.revokeObjectURL(att.previewUrl)
+    attachments.value.splice(idx, 1)
+  }
+}
+
 // ── Select Agent ──────────────────────────────────────────────────────────
 function handleSelectAgent(agent: AgentInfo) {
   if (selectedContact.value?.type === 'agent' && selectedContact.value.id === agent.id && chatStore.activeChat?.meta?._isTemp) {
@@ -170,7 +224,7 @@ function handleSelectAgent(agent: AgentInfo) {
   }
   selectedContact.value = { type: 'agent', id: agent.id }
   selectedAgentId.value = agent.id
-  
+
   // Find existing temp chat for this agent
   const existingTemp = chatStore.chats.find(c => c.meta?._isTemp && c.meta?.agent_id === agent.id && !c.meta?.group_id)
   if (existingTemp) {
@@ -299,8 +353,26 @@ async function selectChat(selected: ChatSpec) {
 async function sendMessage() {
   const text = chat.inputText.value.trim()
   if (!text || !chatStore.activeChat) return
+
+  // Check all attachments finished uploading
+  if (attachments.value.some((a) => a.uploading)) {
+    ElMessage.warning(t('chat.uploading'))
+    return
+  }
+
   chat.inputText.value = ''
   chat.setWelcomeMessage(null)
+
+  // Collect attachment info before clearing
+  const sentAttachments = attachments.value
+    .filter((a) => a.uploadedUrl && !a.error)
+    .map((a) => ({ url: a.uploadedUrl!, name: a.name, type: a.type }))
+
+  // Clear attachments
+  for (const att of attachments.value) {
+    if (att.previewUrl) URL.revokeObjectURL(att.previewUrl)
+  }
+  attachments.value = []
 
   let activeChat = chatStore.activeChat
 
@@ -330,6 +402,27 @@ async function sendMessage() {
 
   await chat.sendMessage(
     text,
+    activeChat.session_id,
+    activeChat.user_id,
+    () => chatWindowRef.value?.scrollIfNearBottom(),
+    () => chatStore.loadChats(),
+    (e) => ElMessage.error(t('chat.requestFailed') + ': ' + e.message),
+    activeGroupId ? undefined : currentAgentId,
+    activeGroupId ?? undefined,
+    false, // not reconnect
+    undefined, // chatId
+    sentAttachments.length > 0 ? sentAttachments : undefined,
+  )
+}
+
+// ── Regenerate ───────────────────────────────────────────────────────────
+async function handleRegenerate() {
+  if (!chatStore.activeChat) return
+  const activeChat = chatStore.activeChat
+  const currentAgentId = (activeChat.meta?.agent_id as string) || selectedAgentId.value
+  const activeGroupId = currentGroupId.value || undefined
+
+  await chat.regenerateLastMessage(
     activeChat.session_id,
     activeChat.user_id,
     () => chatWindowRef.value?.scrollIfNearBottom(),
@@ -403,7 +496,6 @@ onMounted(async () => {
   await chatStore.loadChats()
   // Restore active chat's history if returning from settings
   const active = chatStore.activeChat
-  console.log("active ", active)
   if (active && !active.meta?._isTemp) {
     // Restore selectedContact from active chat meta
     if (active.meta?.group_id) {
@@ -523,14 +615,14 @@ onMounted(async () => {
 
 .welcome-bubble {
   max-width: 500px;
-  background: var(--primary-light);
-  color: var(--primary-dark);
+  background: var(--bg-user-message);
+  color: var(--text-2);
   padding: 16px 20px;
   border-radius: 12px;
   font-size: 15px;
   line-height: 1.6;
   text-align: center;
-  border: 1px solid var(--primary-light);
+  border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
   animation: slide-up 0.4s ease-out;
 }
@@ -561,13 +653,12 @@ onMounted(async () => {
 .skeleton-row {
   display: flex;
 }
-.skeleton-row.user { justify-content: flex-end; }
+.skeleton-row.user { justify-content: flex-start; }
 .skeleton-row.assistant { justify-content: flex-start; }
 
 .skeleton-bubble {
   height: 40px;
-  border-radius: 18px;
-  border-bottom-right-radius: 4px;
+  border-radius: var(--radius-lg);
   background: var(--border);
   animation: skeleton-shimmer 1.4s ease-in-out infinite;
 }

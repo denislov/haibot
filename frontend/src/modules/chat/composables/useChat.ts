@@ -52,10 +52,24 @@ export function useChat() {
           .filter((c) => c.type === 'text')
           .map((c) => c.text || '')
           .join('')
+
+        // Extract attachments from content items
+        const attachments: { name: string; url: string; type: string }[] = []
+        for (const c of content) {
+          if (c.type === 'image' && c.image_url?.url) {
+            attachments.push({ name: 'image', url: c.image_url.url, type: 'image/png' })
+          } else if (c.type === 'file' && (c as Record<string, unknown>).file_url) {
+            const fileUrl = (c as Record<string, unknown>).file_url as string
+            const filename = (c as Record<string, unknown>).filename as string || 'file'
+            attachments.push({ name: filename, url: fileUrl, type: 'application/octet-stream' })
+          }
+        }
+
         result.push({
           id: (m.id as string) || uuidv4(),
           role: 'user',
           blocks: [{ id: uuidv4(), kind: 'text', text }],
+          attachments: attachments.length > 0 ? attachments : undefined,
         })
       } else if (role === 'assistant') {
         const msg = ensureAssistantMsg(agentId, agentName)
@@ -129,40 +143,21 @@ export function useChat() {
     welcomeMessage.value = msg
   }
 
-  // ── Send message ───────────────────────────────────────────────────────
-  async function sendMessage(
+  // ── Shared stream handler ─────────────────────────────────────────────
+  async function _startStream(
     text: string,
     sessionId: string,
     userId: string,
+    assistantMsg: DisplayMessage,
     scrollToBottom: () => void,
     onDone?: () => void,
     onError?: (e: Error) => void,
     agentId?: string,
     groupId?: string,
     reconnect?: boolean,
-    chatId?: string,
+    attachments?: { url: string; name: string; type: string }[],
+    regenerate?: boolean,
   ) {
-    if (!reconnect && (!text.trim() || streaming.value)) return
-    if (reconnect && streaming.value) return
-
-    if (chatId) setChatId(chatId)
-
-    if (!reconnect) {
-      // Add user message
-      displayMessages.value.push({
-        id: uuidv4(),
-        role: 'user',
-        blocks: [{ id: uuidv4(), kind: 'text', text }],
-      })
-    }
-
-    // Add assistant shell
-    displayMessages.value.push({ id: uuidv4(), role: 'assistant', blocks: [], streaming: true })
-    const assistantMsg = displayMessages.value[displayMessages.value.length - 1]
-
-    streaming.value = true
-    scrollToBottom()
-
     // Event routing maps (main / single-agent path)
     const msgBlockMap = new Map<string, DisplayBlock>()
     const callBlockMap = new Map<string, DisplayBlock>()
@@ -205,21 +200,16 @@ export function useChat() {
       let eventAgentId = MAIN
       let agentName: string | undefined
 
-      // Check message-level events for agent_id in metadata
-      // (injected by the runner into every Msg, persisted in session state)
       if (event.object === 'message' && event.status === 'in_progress') {
         const metadata = event.metadata as Record<string, unknown> | undefined
         if (metadata?.agent_id) {
           eventAgentId = metadata.agent_id as string
           agentName = metadata.agent_name as string | undefined
-          // Map this msg id to the agent so content events can be routed
           if (event.id) {
             msgIdToAgentId.set(event.id as string, eventAgentId)
           }
         }
       } else if (event.object === 'content' && event.msg_id) {
-        // Route content events via msg_id → agentId mapping (preferred),
-        // but also check metadata.agent_id as fallback
         const fromMap = msgIdToAgentId.get(event.msg_id as string)
         const fromMeta = (event.metadata as Record<string, unknown> | undefined)?.agent_id as string | undefined
         eventAgentId = fromMap ?? fromMeta ?? MAIN
@@ -419,6 +409,92 @@ export function useChat() {
       agentId,
       groupId,
       reconnect,
+      attachments,
+      regenerate,
+    )
+  }
+
+  // ── Send message ───────────────────────────────────────────────────────
+  async function sendMessage(
+    text: string,
+    sessionId: string,
+    userId: string,
+    scrollToBottom: () => void,
+    onDone?: () => void,
+    onError?: (e: Error) => void,
+    agentId?: string,
+    groupId?: string,
+    reconnect?: boolean,
+    chatId?: string,
+    attachments?: { url: string; name: string; type: string }[],
+  ) {
+    if (!reconnect && (!text.trim() || streaming.value)) return
+    if (reconnect && streaming.value) return
+
+    if (chatId) setChatId(chatId)
+
+    if (!reconnect) {
+      // Add user message
+      displayMessages.value.push({
+        id: uuidv4(),
+        role: 'user',
+        blocks: [{ id: uuidv4(), kind: 'text', text }],
+        attachments,
+      })
+    }
+
+    // Add assistant shell
+    displayMessages.value.push({ id: uuidv4(), role: 'assistant', blocks: [], streaming: true })
+    const assistantMsg = displayMessages.value[displayMessages.value.length - 1]
+
+    streaming.value = true
+    scrollToBottom()
+
+    await _startStream(
+      text, sessionId, userId, assistantMsg, scrollToBottom,
+      onDone, onError, agentId, groupId, reconnect, attachments,
+    )
+  }
+
+  // ── Regenerate last message ────────────────────────────────────────────
+  async function regenerateLastMessage(
+    sessionId: string,
+    userId: string,
+    scrollToBottom: () => void,
+    onDone?: () => void,
+    onError?: (e: Error) => void,
+    agentId?: string,
+    groupId?: string,
+  ) {
+    if (streaming.value) return
+
+    // Find last user message
+    let lastUserIdx = -1
+    let lastUserText = ''
+    let lastUserAttachments: { url: string; name: string; type: string }[] | undefined
+    for (let i = displayMessages.value.length - 1; i >= 0; i--) {
+      if (displayMessages.value[i].role === 'user') {
+        lastUserIdx = i
+        lastUserText = displayMessages.value[i].blocks[0]?.text || ''
+        lastUserAttachments = displayMessages.value[i].attachments
+        break
+      }
+    }
+    if (lastUserIdx === -1) return
+
+    // Remove all messages after the last user message
+    displayMessages.value.splice(lastUserIdx + 1)
+
+    // Add new assistant shell
+    displayMessages.value.push({ id: uuidv4(), role: 'assistant', blocks: [], streaming: true })
+    const assistantMsg = displayMessages.value[displayMessages.value.length - 1]
+
+    streaming.value = true
+    scrollToBottom()
+
+    await _startStream(
+      lastUserText, sessionId, userId, assistantMsg, scrollToBottom,
+      onDone, onError, agentId, groupId, false, lastUserAttachments, true,
     )
   }
 
@@ -435,5 +511,6 @@ export function useChat() {
     setChatId,
     setWelcomeMessage,
     sendMessage,
+    regenerateLastMessage,
   }
 }

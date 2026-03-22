@@ -2,18 +2,41 @@
   <div class="message-row" :class="message.role">
     <!-- User message -->
     <template v-if="message.role === 'user'">
-      <div class="msg-bubble user-bubble">
+      <div class="msg-user">
+        <div class="msg-sender-label">You</div>
+        <!-- Attachments -->
+        <div v-if="message.attachments?.length" class="msg-attachments">
+          <template v-for="att in message.attachments" :key="att.url">
+            <a
+              v-if="att.type.startsWith('image/')"
+              :href="att.url"
+              target="_blank"
+              class="msg-att-img-link"
+            >
+              <img :src="att.url" :alt="att.name" class="msg-att-img" />
+            </a>
+            <span v-else class="msg-att-file">
+              <el-icon><Document /></el-icon>
+              {{ att.name }}
+            </span>
+          </template>
+        </div>
         <span>{{ message.blocks[0]?.text || '' }}</span>
       </div>
     </template>
 
     <!-- Assistant message -->
     <template v-else>
-      <!-- Agent name badge for group chat -->
-      <div v-if="message.agentName" class="agent-name-badge">
-        {{ message.agentName }}
+      <!-- Agent name badge (always shown) -->
+      <div class="agent-name-badge">
+        {{ message.agentName || 'Assistant' }}
       </div>
       <div class="msg-assistant" :class="{ 'group-agent': message.agentId }">
+        <!-- Typing indicator (waiting for first content) -->
+        <div v-if="message.streaming && message.blocks.length === 0" class="typing-indicator">
+          <span class="dot" /><span class="dot" /><span class="dot" />
+        </div>
+
         <div v-for="(block, bi) in message.blocks" :key="bi" class="msg-block">
           <!-- Text -->
           <MarkdownBlock
@@ -26,6 +49,7 @@
             v-else-if="block.kind === 'reasoning'"
             :text="block.text"
             :expanded="block.expanded"
+            :streaming="message.streaming"
             @toggle="block.expanded = !block.expanded"
           />
 
@@ -45,11 +69,19 @@
         <!-- Streaming cursor -->
         <span v-if="message.streaming" class="streaming-cursor" />
 
-        <!-- Action bar (copy button) — shown on hover -->
-        <div v-if="!message.streaming && hasContent" class="msg-actions">
+        <!-- Action bar -->
+        <div v-if="!message.streaming && hasContent" class="msg-actions" :class="{ 'always-visible': isLast }">
           <button class="action-btn" :title="$t('common.copy')" @click="copyMessage">
             <el-icon v-if="!copied"><CopyDocument /></el-icon>
             <el-icon v-else><Select /></el-icon>
+          </button>
+          <button
+            v-if="isLast && !isStreaming"
+            class="action-btn"
+            :title="$t('chat.regenerate')"
+            @click="$emit('regenerate')"
+          >
+            <el-icon><RefreshRight /></el-icon>
           </button>
         </div>
       </div>
@@ -67,7 +99,11 @@ import MarkdownBlock from './MarkdownBlock.vue'
 
 const props = defineProps<{
   message: DisplayMessage
+  isLast?: boolean
+  isStreaming?: boolean
 }>()
+
+defineEmits<{ regenerate: [] }>()
 
 const copied = ref(false)
 
@@ -91,33 +127,98 @@ function copyMessage() {
 </script>
 
 <style scoped>
-.message-row { display: flex; }
-.message-row.user { justify-content: flex-end; }
-.message-row.assistant { justify-content: flex-start; }
+@keyframes messageEntryFade {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
-.msg-bubble {
-  max-width: 80%;
-  padding: 10px 16px;
-  border-radius: 18px;
-  font-size: 14px;
+.message-row {
+  display: flex;
+  flex-direction: column;
+  animation: messageEntryFade var(--transition-message) both;
+}
+
+/* ── User message ── */
+.msg-user {
+  width: 100%;
+  background: var(--bg-user-message);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  font-size: 15px;
   line-height: 1.6;
   word-break: break-word;
 }
-.user-bubble {
-  background: var(--primary);
-  color: white;
-  border-bottom-right-radius: 4px;
+
+.msg-sender-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-4);
+  margin-bottom: 4px;
 }
 
+/* ── User attachments ── */
+.msg-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.msg-att-img-link { display: inline-block; }
+.msg-att-img {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 8px;
+  object-fit: cover;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+.msg-att-img:hover { opacity: 0.85; }
+
+.msg-att-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+/* ── Assistant message ── */
 .msg-assistant {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   position: relative;
 }
 
-/* Action bar — appears below last text block on hover / focus */
+/* ── Typing indicator ── */
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-4px); }
+}
+
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.typing-indicator .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-4);
+  animation: typingBounce 1.2s infinite;
+}
+.typing-indicator .dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator .dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* ── Action bar ── */
 .msg-actions {
   display: flex;
   gap: 4px;
@@ -125,10 +226,10 @@ function copyMessage() {
   transition: opacity 0.15s;
   padding-top: 2px;
 }
+.msg-actions.always-visible { opacity: 1; }
 .message-row:hover .msg-actions,
 .message-row:focus-within .msg-actions { opacity: 1; }
 
-/* Touch devices: always show action bar (no hover available) */
 @media (hover: none) {
   .msg-actions { opacity: 1; }
 }
@@ -167,14 +268,14 @@ function copyMessage() {
 .agent-name-badge {
   font-size: 11px;
   font-weight: 600;
-  color: var(--el-color-primary);
+  color: var(--el-color-primary, var(--primary));
   margin-bottom: 4px;
   padding-left: 2px;
   opacity: 0.85;
 }
 
 .msg-assistant.group-agent {
-  border-left: 2px solid var(--el-color-primary-light-5);
+  border-left: 2px solid var(--el-color-primary-light-5, var(--primary-light));
   padding-left: 8px;
 }
 </style>

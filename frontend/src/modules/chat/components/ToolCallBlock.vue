@@ -1,5 +1,5 @@
 <template>
-  <div class="tc-block">
+  <div class="tc-block" :class="{ 'tc-active': loading }">
     <div
       class="tc-header"
       :class="{ 'tc-loading': loading }"
@@ -13,33 +13,35 @@
       <el-icon v-else class="tc-chevron" :class="{ open: expanded }"><ArrowDown /></el-icon>
     </div>
 
-    <div v-if="!loading && expanded" class="tc-body">
-      <!-- Input -->
-      <div class="tc-section">
-        <div class="tc-section-hd">
-          <span class="tc-section-label">Input</span>
-          <button class="tc-copy" title="Copy" @click.stop="copy(toolArgs)">
-            <el-icon><CopyDocument /></el-icon>
-          </button>
+    <div v-if="!loading" class="tc-body" :class="{ collapsed: !expanded }">
+      <div class="tc-body-inner">
+        <!-- Input -->
+        <div class="tc-section">
+          <div class="tc-section-hd">
+            <span class="tc-section-label">Input</span>
+            <button class="tc-copy" title="Copy" @click.stop="copy(toolArgs)">
+              <el-icon><CopyDocument /></el-icon>
+            </button>
+          </div>
+          <div class="tc-code-wrap">
+            <table class="tc-code-table">
+              <tbody v-html="renderJsonCode(toolArgs)" />
+            </table>
+          </div>
         </div>
-        <div class="tc-code-wrap">
-          <table class="tc-code-table">
-            <tbody v-html="renderJsonCode(toolArgs)" />
-          </table>
-        </div>
-      </div>
-      <!-- Output -->
-      <div v-if="toolOutput !== undefined" class="tc-section">
-        <div class="tc-section-hd">
-          <span class="tc-section-label">Output</span>
-          <button class="tc-copy" title="Copy" @click.stop="copy(toolOutput)">
-            <el-icon><CopyDocument /></el-icon>
-          </button>
-        </div>
-        <div class="tc-code-wrap">
-          <table class="tc-code-table">
-            <tbody v-html="renderJsonCode(toolOutput)" />
-          </table>
+        <!-- Output -->
+        <div v-if="toolOutput !== undefined" class="tc-section">
+          <div class="tc-section-hd">
+            <span class="tc-section-label">Output</span>
+            <button class="tc-copy" title="Copy" @click.stop="copy(toolOutput)">
+              <el-icon><CopyDocument /></el-icon>
+            </button>
+          </div>
+          <div class="tc-code-wrap">
+            <table class="tc-code-table">
+              <tbody v-html="renderJsonCode(toolOutput)" />
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -65,7 +67,7 @@ function copy(raw: string | undefined) {
   if (!raw) return
   let text: string
   try { text = JSON.stringify(JSON.parse(raw), null, 2) } catch { text = raw }
-  navigator.clipboard.writeText(text).then(() => ElMessage.success('已复制'))
+  navigator.clipboard.writeText(text).then(() => ElMessage.success('Copied'))
 }
 </script>
 
@@ -77,6 +79,18 @@ function copy(raw: string | undefined) {
   background: var(--bg-card);
   font-size: 13px;
   width: 100%;
+  border-left: 2px solid var(--border);
+  transition: border-left-color 0.3s;
+}
+
+@keyframes borderPulse {
+  0%, 100% { border-left-color: var(--primary); }
+  50% { border-left-color: var(--primary-light); }
+}
+
+.tc-block.tc-active {
+  border-left-color: var(--primary);
+  animation: borderPulse 1.5s ease-in-out infinite;
 }
 
 .tc-header {
@@ -113,7 +127,20 @@ function copy(raw: string | undefined) {
 }
 .tc-chevron.open { transform: rotate(180deg); }
 
-.tc-body { border-top: 1px solid var(--border); }
+.tc-body {
+  max-height: 2000px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height var(--transition-expand), opacity var(--transition-expand);
+}
+.tc-body.collapsed {
+  max-height: 0;
+  opacity: 0;
+}
+
+.tc-body-inner {
+  border-top: 1px solid var(--border);
+}
 
 .tc-section {
   padding: 12px 16px;

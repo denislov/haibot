@@ -57,13 +57,24 @@ export async function streamQuery(
   agentId?: string,
   groupId?: string,
   reconnect?: boolean,
+  attachments?: { url: string; name: string; type: string }[],
+  regenerate?: boolean,
 ) {
+  const contentParts: Record<string, unknown>[] = [{ type: 'text', text: input }]
+  for (const att of attachments ?? []) {
+    if (att.type.startsWith('image/')) {
+      contentParts.push({ type: 'image', image_url: { url: att.url } })
+    } else {
+      contentParts.push({ type: 'file', file_url: att.url, filename: att.name })
+    }
+  }
+
   const body: Record<string, unknown> = {
     input: [
       {
         role: 'user',
         type: 'message',
-        content: [{ type: 'text', text: input }],
+        content: contentParts,
       },
     ],
     session_id: sessionId,
@@ -74,7 +85,11 @@ export async function streamQuery(
   if (reconnect) {
     body.reconnect = true
   }
-  
+
+  if (regenerate) {
+    body.regenerate = true
+  }
+
   if (groupId) {
     body.metadata = { group_id: groupId }
   }
