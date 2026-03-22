@@ -77,6 +77,16 @@ export default createRouter({
           name: 'settings-token-usage',
           component: () => import('@/modules/settings/pages/TokenUsageSettings.vue'),
         },
+        {
+          path: 'running-config',
+          name: 'settings-running-config',
+          component: () => import('@/modules/settings/pages/RunningConfigSettings.vue'),
+        },
+        {
+          path: 'security',
+          name: 'settings-security',
+          component: () => import('@/modules/settings/pages/SecuritySettings.vue'),
+        },
       ],
     },
   ],

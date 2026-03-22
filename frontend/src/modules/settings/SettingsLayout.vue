@@ -87,6 +87,8 @@ const navItems = computed(() => [
   { path: 'crons', label: t('settings.crons.title'), icon: 'AlarmClock' },
   { path: 'group-chats', label: t('settings.groupChats.title'), icon: 'ChatDotRound' },
   { path: 'token-usage', label: t('settings.tokenUsage.title'), icon: 'DataAnalysis' },
+  { path: 'running-config', label: t('settings.runningConfig.title'), icon: 'Cpu' },
+  { path: 'security', label: t('settings.security.title'), icon: 'Lock' },
 ])
 </script>
 
