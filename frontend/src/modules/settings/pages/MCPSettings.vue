@@ -7,12 +7,6 @@
           <p class="section-desc">{{ $t('settings.mcp.desc') }}</p>
         </div>
         <div class="header-actions">
-          <div class="agent-selector-wrapper">
-            <span class="selector-label">{{ $t('settings.agents.title') }}</span>
-            <el-select v-model="selectedAgentId" :placeholder="$t('settings.agents.displayNamePlaceholder') || 'Select Agent'" @change="onAgentChange" style="width: 200px" size="small">
-              <el-option v-for="agent in agents" :key="agent.id" :label="agent.name" :value="agent.id" />
-            </el-select>
-          </div>
           <el-button type="primary" @click="openCreateDialog">
             {{ $t('settings.mcp.createClient') }}
           </el-button>
@@ -118,14 +112,12 @@ import {
   toggleMCPClient as apiToggle,
   deleteMCPClient,
 } from '@/api/mcp'
-import { listAgents } from '@/api/agents'
-import { setAgentHeader } from '@/api/index'
-import type { MCPClientInfo, AgentSummary } from '@/types'
+import { useSettingsStore } from '@/stores/settings'
+import type { MCPClientInfo } from '@/types'
 
 const { t } = useI18n()
 
-const agents = ref<AgentSummary[]>([])
-const selectedAgentId = ref<string>('')
+const settingsStore = useSettingsStore()
 const clients = ref<MCPClientInfo[]>([])
 const loading = ref(false)
 
@@ -163,26 +155,13 @@ function transportLabel(t: string): string {
   return map[t] || t
 }
 
-async function loadAgents() {
-  try {
-    agents.value = await listAgents()
-    if (agents.value.length > 0) {
-      selectedAgentId.value = agents.value[0].id
-      onAgentChange()
-    }
-  } catch (e: unknown) {
-    ElMessage.error(String(e))
-  }
-}
-
 function onAgentChange() {
-  if (!selectedAgentId.value) return
-  setAgentHeader(selectedAgentId.value)
+  if (!settingsStore.selectedAgentId) return
   loadData()
 }
 
 async function loadData() {
-  if (!selectedAgentId.value) return
+  if (!settingsStore.selectedAgentId) return
   loading.value = true
   try {
     clients.value = await listMCPClients()
@@ -315,7 +294,11 @@ async function handleEdit() {
   }
 }
 
-onMounted(loadAgents)
+onMounted(() => {
+  if (settingsStore.selectedAgentId) {
+    loadData()
+  }
+})
 </script>
 
 <style scoped>
@@ -326,8 +309,6 @@ onMounted(loadAgents)
 .section-header-row { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
 
 .header-actions { display: flex; align-items: center; gap: 16px; }
-.agent-selector-wrapper { display: flex; align-items: center; gap: 8px; }
-.selector-label { font-size: 12px; font-weight: 500; color: var(--text-3); white-space: nowrap; }
 
 .loading-state { display: flex; justify-content: center; padding: 40px 0; color: var(--text-4); font-size: 24px; }
 .empty-state { text-align: center; padding: 60px 0; color: var(--text-4); font-size: 14px; }

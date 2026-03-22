@@ -87,6 +87,11 @@ export default createRouter({
           name: 'settings-security',
           component: () => import('@/modules/settings/pages/SecuritySettings.vue'),
         },
+        {
+          path: 'heartbeat',
+          name: 'settings-heartbeat',
+          component: () => import('@/modules/settings/pages/HeartbeatSettings.vue'),
+        },
       ],
     },
   ],

@@ -3,12 +3,6 @@
     <div class="page-header">
       <div><h1 class="page-title">{{ $t('settings.skills.title') }}</h1><p class="page-desc">{{ $t('settings.skills.desc') }}</p></div>
       <div class="header-actions">
-        <div class="agent-selector-wrapper">
-          <span class="selector-label">{{ $t('settings.agents.title') }}</span>
-          <el-select v-model="selectedAgentId" :placeholder="$t('settings.agents.displayNamePlaceholder') || 'Select Agent'" @change="onAgentChange" style="width: 200px" size="small">
-            <el-option v-for="agent in agents" :key="agent.id" :label="agent.name" :value="agent.id" />
-          </el-select>
-        </div>
         <el-button type="primary" @click="createDialogVisible = true"><el-icon><Plus /></el-icon>{{ $t('settings.skills.createSkill') }}</el-button>
       </div>
     </div>
@@ -103,12 +97,10 @@ import yaml from 'js-yaml'
 import { Document, Plus, Loading, Close } from '@element-plus/icons-vue'
 import { renderMarkdownWithFrontMatter } from '@/utils/useMarkdown'
 import { listSkills, enableSkill, disableSkill, deleteSkill, createSkill, updateSkill } from '@/api/skills'
-import { listAgents } from '@/api/agents'
-import { setAgentHeader } from '@/api/index'
-import type { SkillSpec, AgentSummary } from '@/types'
+import { useSettingsStore } from '@/stores/settings'
+import type { SkillSpec } from '@/types'
 
-const agents = ref<AgentSummary[]>([])
-const selectedAgentId = ref<string>('')
+const settingsStore = useSettingsStore()
 const skills = ref<SkillSpec[]>([])
 const loading = ref(false)
 const creating = ref(false)
@@ -119,26 +111,8 @@ const editContent = ref('')
 const contentTab = ref<'edit' | 'preview'>('edit')
 const createForm = reactive({ name: '', content: '' })
 
-async function loadAgents() {
-  try {
-    agents.value = await listAgents()
-    if (agents.value.length > 0) {
-      selectedAgentId.value = agents.value[0].id
-      onAgentChange()
-    }
-  } catch (e: unknown) {
-    ElMessage.error(String(e))
-  }
-}
-
-function onAgentChange() {
-  if (!selectedAgentId.value) return
-  setAgentHeader(selectedAgentId.value)
-  loadSkills()
-}
-
 async function loadSkills() {
-  if (!selectedAgentId.value) return
+  if (!settingsStore.selectedAgentId) return
   loading.value = true
   try { skills.value = await listSkills() }
   catch (e: unknown) { ElMessage.error(String(e)) }
@@ -193,7 +167,9 @@ function getCustomEmoji(skill: SkillSpec): string | null {
   return null
 }
 
-onMounted(loadAgents)
+onMounted(() => {
+  if (settingsStore.selectedAgentId) loadSkills()
+})
 </script>
 
 <style scoped>
@@ -245,8 +221,6 @@ onMounted(loadAgents)
 [data-theme="dark"] .badge-customized { color: #60a5fa; border-color: rgba(59,130,246,.3); background: rgba(59,130,246,.1); }
 
 .header-actions { display: flex; align-items: center; gap: 16px; }
-.agent-selector-wrapper { display: flex; align-items: center; gap: 8px; }
-.selector-label { font-size: 12px; font-weight: 500; color: var(--text-3); white-space: nowrap; }
 .skill-card-footer { display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--border); padding-top: 12px; margin-top: auto; }
 .drawer-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 2000; display: flex; justify-content: flex-end; }
 .detail-drawer { width: 520px; height: 100%; background: var(--bg-card); display: flex; flex-direction: column; box-shadow: -4px 0 24px rgba(0,0,0,0.12); animation: slideIn 0.22s ease; }

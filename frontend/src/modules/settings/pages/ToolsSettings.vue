@@ -5,12 +5,6 @@
         <h2>{{ $t('settings.tools.title') }}</h2>
         <p class="desc">{{ $t('settings.tools.desc') }}</p>
       </div>
-      <div class="agent-selector-wrapper">
-        <span class="selector-label">{{ $t('settings.agents.title') }}</span>
-        <el-select v-model="selectedAgentId" :placeholder="$t('settings.agents.displayNamePlaceholder') || 'Select Agent'" @change="onAgentChange" style="width: 200px" size="small">
-          <el-option v-for="agent in agents" :key="agent.id" :label="agent.name" :value="agent.id" />
-        </el-select>
-      </div>
     </div>
 
     <div v-if="loading" class="loading-state">
@@ -42,37 +36,17 @@ import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { listTools, toggleTool } from '@/api/tools'
-import { listAgents } from '@/api/agents'
-import { setAgentHeader } from '@/api/index'
-import type { ToolInfo, AgentSummary } from '@/types'
+import { useSettingsStore } from '@/stores/settings'
+import type { ToolInfo } from '@/types'
 
 const { t } = useI18n()
-const agents = ref<AgentSummary[]>([])
-const selectedAgentId = ref<string>('')
+const settingsStore = useSettingsStore()
 const tools = ref<ToolInfo[]>([])
 const loading = ref(true)
 const togglingSet = ref<Set<string>>(new Set())
 
-async function loadAgents() {
-  try {
-    agents.value = await listAgents()
-    if (agents.value.length > 0) {
-      selectedAgentId.value = agents.value[0].id
-      onAgentChange()
-    }
-  } catch (e: unknown) {
-    ElMessage.error(String(e))
-  }
-}
-
-function onAgentChange() {
-  if (!selectedAgentId.value) return
-  setAgentHeader(selectedAgentId.value)
-  fetchTools()
-}
-
-async function fetchTools() {
-  if (!selectedAgentId.value) return
+async function loadTools() {
+  if (!settingsStore.selectedAgentId) return
   loading.value = true
   try {
     tools.value = await listTools()
@@ -96,7 +70,11 @@ async function handleToggle(tool: ToolInfo) {
   }
 }
 
-onMounted(loadAgents)
+onMounted(() => {
+  if (settingsStore.selectedAgentId) {
+    loadTools()
+  }
+})
 </script>
 
 <style scoped>
@@ -112,8 +90,6 @@ onMounted(loadAgents)
   margin-bottom: 0px;
 }
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; }
-.agent-selector-wrapper { display: flex; align-items: center; gap: 8px; }
-.selector-label { font-size: 12px; font-weight: 500; color: var(--text-3); white-space: nowrap; }
 
 .loading-state { max-width: 600px; }
 .empty-state { color: var(--text-4); font-size: 14px; }

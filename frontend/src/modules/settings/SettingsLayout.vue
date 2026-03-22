@@ -8,17 +8,45 @@
           <span>{{ $t('common.back') }}</span>
         </button>
       </div>
-      <h2 class="nav-title">{{ $t('common.settings') }}</h2>
-      <nav class="nav-list">
-        <router-link
-          v-for="item in navItems"
-          :key="item.path"
-          :to="'/settings/' + item.path"
-          class="nav-item"
+
+      <!-- Agent selector -->
+      <div class="agent-switcher">
+        <el-select
+          v-model="settingsStore.selectedAgentId"
+          size="small"
+          style="width: 100%"
+          @change="onAgentChange"
         >
-          <el-icon><component :is="item.icon" /></el-icon>
-          <span>{{ item.label }}</span>
-        </router-link>
+          <el-option
+            v-for="agent in settingsStore.agents"
+            :key="agent.id"
+            :label="agent.name"
+            :value="agent.id"
+          />
+        </el-select>
+      </div>
+
+      <nav class="nav-list">
+        <template v-for="group in navGroups" :key="group.key">
+          <div class="nav-group">
+            <button class="nav-group-header" @click="toggleGroup(group.key)">
+              <el-icon><component :is="group.icon" /></el-icon>
+              <span class="nav-group-label">{{ group.label }}</span>
+              <el-icon class="nav-group-arrow" :class="{ collapsed: collapsedGroups[group.key] }"><ArrowUp /></el-icon>
+            </button>
+            <div v-show="!collapsedGroups[group.key]" class="nav-group-items">
+              <router-link
+                v-for="item in group.items"
+                :key="item.path"
+                :to="'/settings/' + item.path"
+                class="nav-item"
+              >
+                <el-icon><component :is="item.icon" /></el-icon>
+                <span>{{ item.label }}</span>
+              </router-link>
+            </div>
+          </div>
+        </template>
       </nav>
 
       <!-- Theme & Language at bottom -->
@@ -60,36 +88,84 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useTheme } from '@/utils/useTheme'
 import { setLocale } from '@/i18n'
+import { useSettingsStore } from '@/stores/settings'
 
 const router = useRouter()
 const { t, locale } = useI18n()
 const { isDark, themeMode, setTheme } = useTheme()
+const settingsStore = useSettingsStore()
 
 function changeLocale(val: string) {
   setLocale(val as 'zh-CN' | 'en')
 }
 
-const navItems = computed(() => [
-  { path: 'models', label: t('settings.models.title'), icon: 'Box' },
-  { path: 'mcp', label: t('settings.mcp.title'), icon: 'Link' },
-  { path: 'agents', label: t('settings.agents.title'), icon: 'Avatar' },
-  { path: 'channels', label: t('settings.channels.title'), icon: 'Connection' },
-  { path: 'sessions', label: t('settings.sessions.title'), icon: 'UserFilled' },
-  { path: 'workspace', label: t('settings.workspace.title'), icon: 'Suitcase' },
-  { path: 'skills', label: t('settings.skills.title'), icon: 'MagicStick' },
-  { path: 'tools', label: t('settings.tools.title'), icon: 'SetUp' },
-  { path: 'envs', label: t('settings.envs.title'), icon: 'Setting' },
-  { path: 'crons', label: t('settings.crons.title'), icon: 'AlarmClock' },
-  { path: 'group-chats', label: t('settings.groupChats.title'), icon: 'ChatDotRound' },
-  { path: 'token-usage', label: t('settings.tokenUsage.title'), icon: 'DataAnalysis' },
-  { path: 'running-config', label: t('settings.runningConfig.title'), icon: 'Cpu' },
-  { path: 'security', label: t('settings.security.title'), icon: 'Lock' },
+// Collapsible groups — all expanded by default
+const collapsedGroups = reactive<Record<string, boolean>>({
+  control: false,
+  agent: false,
+  settings: false,
+})
+
+function toggleGroup(key: string) {
+  collapsedGroups[key] = !collapsedGroups[key]
+}
+
+function onAgentChange() {
+  // The store's watch already updates the X-Agent-Id header.
+  // Reload the current page by emitting a route replace to force re-fetch.
+  const currentPath = router.currentRoute.value.fullPath
+  router.replace('/settings').then(() => router.replace(currentPath))
+}
+
+const navGroups = computed(() => [
+  {
+    key: 'control',
+    label: t('settings.navGroup.control'),
+    icon: 'Promotion',
+    items: [
+      { path: 'channels', label: t('settings.channels.title'), icon: 'Connection' },
+      { path: 'sessions', label: t('settings.sessions.title'), icon: 'UserFilled' },
+      { path: 'crons', label: t('settings.crons.title'), icon: 'AlarmClock' },
+      { path: 'heartbeat', label: t('settings.heartbeat.title'), icon: 'Odometer' },
+      { path: 'group-chats', label: t('settings.groupChats.title'), icon: 'ChatDotRound' },
+    ],
+  },
+  {
+    key: 'agent',
+    label: t('settings.navGroup.agent'),
+    icon: 'Lightning',
+    items: [
+      { path: 'workspace', label: t('settings.workspace.title'), icon: 'Suitcase' },
+      { path: 'skills', label: t('settings.skills.title'), icon: 'MagicStick' },
+      { path: 'tools', label: t('settings.tools.title'), icon: 'SetUp' },
+      { path: 'mcp', label: t('settings.mcp.title'), icon: 'Link' },
+      { path: 'running-config', label: t('settings.runningConfig.title'), icon: 'Setting' },
+    ],
+  },
+  {
+    key: 'settings',
+    label: t('settings.navGroup.settings'),
+    icon: 'Setting',
+    items: [
+      { path: 'agents', label: t('settings.agents.title'), icon: 'Avatar' },
+      { path: 'models', label: t('settings.models.title'), icon: 'Box' },
+      { path: 'envs', label: t('settings.envs.title'), icon: 'Setting' },
+      { path: 'security', label: t('settings.security.title'), icon: 'Lock' },
+      { path: 'token-usage', label: t('settings.tokenUsage.title'), icon: 'DataAnalysis' },
+    ],
+  },
 ])
+
+onMounted(() => {
+  if (!settingsStore.loaded) {
+    settingsStore.loadAgents()
+  }
+})
 </script>
 
 <style scoped>
@@ -128,19 +204,56 @@ const navItems = computed(() => [
 .back-btn:hover { background: var(--bg); color: var(--text-1); }
 .back-btn .el-icon { font-size: 14px; }
 
-.nav-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-1);
-  padding: 0 8px;
-  margin-bottom: 12px;
+/* ── Agent switcher ── */
+.agent-switcher {
+  padding: 0 4px;
+  margin-bottom: 16px;
 }
 
+/* ── Nav groups ── */
 .nav-list {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+}
+
+.nav-group {
+  margin-bottom: 4px;
+}
+
+.nav-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--primary-text);
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius);
+  transition: background var(--transition-fast);
+}
+.nav-group-header:hover { background: var(--bg); }
+.nav-group-header .el-icon:first-child { font-size: 15px; }
+
+.nav-group-label { flex: 1; text-align: left; }
+
+.nav-group-arrow {
+  font-size: 12px !important;
+  color: var(--text-4);
+  transition: transform 0.2s;
+}
+.nav-group-arrow.collapsed { transform: rotate(180deg); }
+
+.nav-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: 8px;
 }
 
 .nav-item {

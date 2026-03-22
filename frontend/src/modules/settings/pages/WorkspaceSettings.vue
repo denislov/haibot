@@ -1,16 +1,10 @@
 <template>
   <div class="workspace-layout">
     <div class="file-panel">
-      <div class="agent-selector-wrapper">
-        <span class="selector-label">{{ $t('settings.agents.title') }}</span>
-        <el-select v-model="selectedAgentId" :placeholder="$t('settings.agents.displayNamePlaceholder') || 'Select Agent'" @change="onAgentChange" style="width: 100%" size="small">
-          <el-option v-for="agent in agents" :key="agent.id" :label="agent.name" :value="agent.id" />
-        </el-select>
-      </div>
       <div class="panel-header">
         <div class="panel-title-row">
           <span class="panel-title">{{ $t('settings.workspace.coreFiles') }}</span>
-          <button class="refresh-btn" :class="{ spinning: refreshing }" @click="loadFiles" :disabled="!selectedAgentId">
+          <button class="refresh-btn" :class="{ spinning: refreshing }" @click="loadFiles" :disabled="!settingsStore.selectedAgentId">
             <el-icon><Refresh /></el-icon>{{ $t('common.refresh') }}
           </button>
         </div>
@@ -62,47 +56,26 @@ import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import draggable from 'vuedraggable'
 import { MoreFilled, Refresh } from '@element-plus/icons-vue'
-import { listAgents, listAgentFiles, readAgentFile, writeAgentFile, getSystemPromptFiles, updateSystemPromptFiles } from '@/api/agents'
-import { setAgentHeader } from '@/api/index'
-import type { AgentSummary, MdFileInfo } from '@/types'
+import { listAgentFiles, readAgentFile, writeAgentFile, getSystemPromptFiles, updateSystemPromptFiles } from '@/api/agents'
+import { useSettingsStore } from '@/stores/settings'
+import type { MdFileInfo } from '@/types'
 
 interface WorkspaceFile extends MdFileInfo {
   enabled: boolean
 }
 
-const agents = ref<AgentSummary[]>([])
-const selectedAgentId = ref<string>('')
+const settingsStore = useSettingsStore()
 const displayFiles = ref<WorkspaceFile[]>([])
 const selectedFile = ref<string | null>(null)
 const editorContent = ref('')
 const refreshing = ref(false)
 const saving = ref(false)
 
-async function loadAgents() {
-  try {
-    agents.value = await listAgents()
-    if (agents.value.length > 0) {
-      selectedAgentId.value = agents.value[0].id
-      await loadFiles()
-    }
-  } catch (e: unknown) {
-    ElMessage.error(String(e))
-  }
-}
-
-function onAgentChange() {
-  selectedFile.value = null
-  editorContent.value = ''
-  displayFiles.value = []
-  if (selectedAgentId.value) setAgentHeader(selectedAgentId.value)
-  loadFiles()
-}
-
 async function loadFiles() {
-  if (!selectedAgentId.value) return
+  if (!settingsStore.selectedAgentId) return
   refreshing.value = true
   try {
-    const allFiles = await listAgentFiles(selectedAgentId.value)
+    const allFiles = await listAgentFiles(settingsStore.selectedAgentId)
     const enabledNames = await getSystemPromptFiles()
     
     const mapped: WorkspaceFile[] = []
@@ -124,7 +97,7 @@ async function loadFiles() {
 }
 
 async function syncPrompts() {
-  if (!selectedAgentId.value) return
+  if (!settingsStore.selectedAgentId) return
   const enabledNames = displayFiles.value.filter(f => f.enabled).map(f => f.filename)
   try {
     await updateSystemPromptFiles(enabledNames)
@@ -140,10 +113,10 @@ function onToggle() {
 }
 
 async function selectFile(file: WorkspaceFile) {
-  if (!selectedAgentId.value) return
+  if (!settingsStore.selectedAgentId) return
   selectedFile.value = file.filename
   try {
-    const data = await readAgentFile(selectedAgentId.value, file.filename)
+    const data = await readAgentFile(settingsStore.selectedAgentId, file.filename)
     editorContent.value = data.content
   } catch (e: unknown) {
     ElMessage.error(String(e))
@@ -151,9 +124,9 @@ async function selectFile(file: WorkspaceFile) {
 }
 
 async function saveFile() {
-  if (!selectedAgentId.value || !selectedFile.value) return
+  if (!settingsStore.selectedAgentId || !selectedFile.value) return
   saving.value = true
-  try { await writeAgentFile(selectedAgentId.value, selectedFile.value, editorContent.value); ElMessage.success('Saved') }
+  try { await writeAgentFile(settingsStore.selectedAgentId, selectedFile.value, editorContent.value); ElMessage.success('Saved') }
   catch (e: unknown) { ElMessage.error(String(e)) }
   finally { saving.value = false }
 }
@@ -177,14 +150,15 @@ function formatTimeOffset(isoTime: string) {
   return `${days}d ago`
 }
 
-onMounted(loadAgents)
+onMounted(async () => {
+  if (!settingsStore.loaded) await settingsStore.loadAgents()
+  if (settingsStore.selectedAgentId) await loadFiles()
+})
 </script>
 
 <style scoped>
 .workspace-layout { display: flex; height: calc(100vh - 56px); margin: -28px; }
 .file-panel { width: 280px; flex-shrink: 0; background: var(--bg-sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-.agent-selector-wrapper { padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg-card); }
-.selector-label { display: block; font-size: 12px; font-weight: 500; color: var(--text-3); margin-bottom: 6px; }
 .panel-header { padding: 16px; border-bottom: 1px solid var(--border); }
 .panel-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .panel-title { font-size: 14px; font-weight: 600; color: var(--text-1); }
