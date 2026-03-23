@@ -1,6 +1,6 @@
 ---
 name: cron
-description: 通过 haibot 命令管理定时任务 - 创建、查询、暂停、恢复、删除任务
+description: 定时任务管理：haibot cron list 查询任务，haibot cron create 创建任务，haibot cron pause/resume 暂停/恢复，haibot cron delete 删除。用 -h 查看帮助 | Cron job management - haibot cron list to query jobs, haibot cron create to create jobs, haibot cron pause/resume to pause/resume, haibot cron delete to delete. Use -h for help
 metadata: { "builtin_skill_version": "1.0", "haibot": { "emoji": "⏰" } }
 ---
 
