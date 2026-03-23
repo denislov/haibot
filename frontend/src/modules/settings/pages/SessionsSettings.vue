@@ -44,7 +44,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { listChats, updateChat, deleteChat } from '@/api/chats'
 import { useSettingsStore } from '@/stores/settings'
@@ -70,7 +70,10 @@ const pagedSessions = computed(() => {
 async function loadSessions() {
   if (!settingsStore.selectedAgentId) return
   try {
-    sessions.value = await listChats({ user_id: filterUserId.value || undefined, channel: filterChannel.value || undefined })
+    sessions.value = await listChats(
+      { user_id: filterUserId.value || undefined, channel: filterChannel.value || undefined },
+      settingsStore.selectedAgentId,
+    )
   } catch (e: unknown) { ElMessage.error('Load failed: ' + (e instanceof Error ? e.message : String(e))) }
 }
 
@@ -80,7 +83,11 @@ async function saveSession() {
   if (!editingSession.value) return
   saving.value = true
   try {
-    await updateChat(editingSession.value.id, { ...editingSession.value, name: editForm.value.name })
+    await updateChat(
+      editingSession.value.id,
+      { ...editingSession.value, name: editForm.value.name },
+      settingsStore.selectedAgentId,
+    )
     ElMessage.success('Saved'); editDialogVisible.value = false; await loadSessions()
   } catch (e: unknown) { ElMessage.error('Save failed: ' + (e instanceof Error ? e.message : String(e)))
   } finally { saving.value = false }
@@ -89,7 +96,7 @@ async function saveSession() {
 async function handleDelete(row: ChatSpec) {
   try {
     await ElMessageBox.confirm(`Delete "${row.name}"?`, 'Confirm', { confirmButtonText: 'Delete', cancelButtonText: 'Cancel', type: 'warning' })
-    await deleteChat(row.id); ElMessage.success('Deleted'); await loadSessions()
+    await deleteChat(row.id, settingsStore.selectedAgentId); ElMessage.success('Deleted'); await loadSessions()
   } catch { /* cancelled */ }
 }
 
@@ -101,6 +108,10 @@ function formatTime(iso: string) {
 
 onMounted(() => {
   if (settingsStore.selectedAgentId) loadSessions()
+})
+
+watch(() => settingsStore.selectedAgentId, (agentId) => {
+  if (agentId) loadSessions()
 })
 </script>
 

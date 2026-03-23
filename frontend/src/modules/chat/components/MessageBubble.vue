@@ -21,7 +21,11 @@
             </span>
           </template>
         </div>
-        <span>{{ message.blocks[0]?.text || '' }}</span>
+        <MarkdownBlock
+          v-if="message.blocks[0]?.text"
+          class="msg-user-markdown"
+          :text="message.blocks[0]?.text || ''"
+        />
       </div>
     </template>
 
@@ -140,7 +144,13 @@ function copyMessage() {
 
 /* ── User message ── */
 .msg-user {
-  width: 100%;
+  align-self: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: fit-content;
+  max-width: min(720px, calc(100% - 56px));
+  margin-left: 56px;
   background: var(--bg-user-message);
   border-radius: var(--radius-lg);
   padding: 16px 20px;
@@ -149,11 +159,23 @@ function copyMessage() {
   word-break: break-word;
 }
 
+.msg-user :deep(.md-content) {
+  color: inherit;
+}
+
+.msg-user :deep(.md-content > *:first-child) {
+  margin-top: 0;
+}
+
+.msg-user :deep(.md-content > *:last-child) {
+  margin-bottom: 0;
+}
+
 .msg-sender-label {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-4);
-  margin-bottom: 4px;
+  text-align: right;
 }
 
 /* ── User attachments ── */
@@ -161,7 +183,6 @@ function copyMessage() {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 8px;
 }
 
 .msg-att-img-link { display: inline-block; }

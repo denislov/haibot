@@ -29,7 +29,7 @@ export const getAgent = (id: string) =>
  * Update agent configuration
  */
 export const updateAgent = (id: string, data: Partial<AgentProfileConfig>) =>
-  api.put<AgentProfileConfig>(`/agents/${id}`, data).then((r) => r.data)
+  api.put<AgentProfileConfig>(`/agents/${id}`, { ...data, id }).then((r) => r.data)
 
 /**
  * Delete an agent

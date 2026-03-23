@@ -3,41 +3,46 @@ import type { ChatSpec, AgentMessage, ChatHistory } from '@/types'
 
 declare const BASE_URL: string
 
+const getChatsEndpoint = (agentId?: string) =>
+  agentId ? `/agents/${agentId}/chats` : '/chats'
+
 /**
  * List all chats, optionally filtered by user or channel
  */
-export const listChats = (params?: { user_id?: string; channel?: string }) =>
-  api.get<ChatSpec[]>('/chats', { params }).then((r) => r.data)
+export const listChats = (
+  params?: { user_id?: string; channel?: string },
+  agentId?: string,
+) => api.get<ChatSpec[]>(getChatsEndpoint(agentId), { params }).then((r) => r.data)
 
 /**
  * Create a new chat session
  */
-export const createChat = (data: Partial<ChatSpec>) =>
-  api.post<ChatSpec>('/chats', data).then((r) => r.data)
+export const createChat = (data: Partial<ChatSpec>, agentId?: string) =>
+  api.post<ChatSpec>(getChatsEndpoint(agentId), data).then((r) => r.data)
 
 /**
  * Get full chat history and status
  */
-export const getChat = (id: string) =>
-  api.get<ChatHistory>(`/chats/${id}`).then((r) => r.data)
+export const getChat = (id: string, agentId?: string) =>
+  api.get<ChatHistory>(`${getChatsEndpoint(agentId)}/${id}`).then((r) => r.data)
 
 /**
  * Update chat metadata
  */
-export const updateChat = (id: string, data: ChatSpec) =>
-  api.put<ChatSpec>(`/chats/${id}`, data).then((r) => r.data)
+export const updateChat = (id: string, data: ChatSpec, agentId?: string) =>
+  api.put<ChatSpec>(`${getChatsEndpoint(agentId)}/${id}`, data).then((r) => r.data)
 
 /**
  * Delete a single chat
  */
-export const deleteChat = (id: string) =>
-  api.delete<{ deleted: boolean }>(`/chats/${id}`).then((r) => r.data)
+export const deleteChat = (id: string, agentId?: string) =>
+  api.delete<{ deleted: boolean }>(`${getChatsEndpoint(agentId)}/${id}`).then((r) => r.data)
 
 /**
  * Delete multiple chats at once
  */
-export const batchDeleteChats = (ids: string[]) =>
-  api.post<{ deleted: boolean }>('/chats/batch-delete', ids).then((r) => r.data)
+export const batchDeleteChats = (ids: string[], agentId?: string) =>
+  api.post<{ deleted: boolean }>(`${getChatsEndpoint(agentId)}/batch-delete`, ids).then((r) => r.data)
 
 /** Stop a running chat on the server side. */
 export const stopChat = (chatId: string, agentId?: string) => {

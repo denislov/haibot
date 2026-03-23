@@ -120,7 +120,7 @@ import {
   deleteAgent as apiDelete,
   updateAgent as apiUpdate,
 } from '@/api/agents'
-import type { AgentInfo } from '@/types'
+import type { AgentInfo, AgentProfileConfig } from '@/types'
 
 const { t } = useI18n()
 
@@ -204,9 +204,10 @@ function openEditDialog(agent: AgentInfo) {
 async function handleEditSave() {
   editing.value = true
   try {
-    const data: any = { name: editForm.name }
-    if (editForm.description !== undefined) {
-      data.description = editForm.description
+    const data: Partial<AgentProfileConfig> = {
+      id: editForm.id,
+      name: editForm.name,
+      description: editForm.description,
     }
     await apiUpdate(editForm.id, data)
     ElMessage.success(t('common.saveSuccess'))
