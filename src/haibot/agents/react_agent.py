@@ -487,6 +487,7 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
         sys_prompt = build_system_prompt_from_working_dir(
             working_dir=self._workspace_dir,
             agent_id=agent_id,
+            agent_name=self._agent_config.name,
             heartbeat_enabled=heartbeat_enabled,
         )
         logger.debug("System prompt:\n%s", sys_prompt)

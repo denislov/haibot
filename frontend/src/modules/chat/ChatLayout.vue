@@ -182,6 +182,17 @@ function resolveChatAgentId(chat?: ChatSpec | null): string {
   return fallbackAgentId.value
 }
 
+function resolveChatAgentName(chat?: ChatSpec | null): string {
+  const chatAgentId = resolveChatAgentId(chat)
+  const agent = agentsList.value.find((item) => item.id === chatAgentId)
+  if (agent?.name) return agent.name
+  if (selectedContact.value?.type === 'agent') {
+    const selected = agentsList.value.find((item) => item.id === selectedContact.value?.id)
+    if (selected?.name) return selected.name
+  }
+  return 'Assistant'
+}
+
 // ── File upload handling ──────────────────────────────────────────────────
 
 function handleAddFiles(files: File[]) {
@@ -357,6 +368,7 @@ async function selectChat(selected: ChatSpec) {
         ),
         (e) => ElMessage.error(t('chat.requestFailed') + ': ' + e.message),
         activeGroupId ? undefined : currentAgentId,
+        activeGroupId ? undefined : resolveChatAgentName(selected),
         activeGroupId ?? undefined,
         true, // reconnect
         selected.id,
@@ -439,6 +451,7 @@ async function sendMessage() {
     ),
     (e) => ElMessage.error(t('chat.requestFailed') + ': ' + e.message),
     activeGroupId ? undefined : currentAgentId,
+    activeGroupId ? undefined : resolveChatAgentName(activeChat),
     activeGroupId ?? undefined,
     false, // not reconnect
     activeChat.id,
@@ -464,6 +477,7 @@ async function handleRegenerate() {
     ),
     (e) => ElMessage.error(t('chat.requestFailed') + ': ' + e.message),
     activeGroupId ? undefined : currentAgentId,
+    activeGroupId ? undefined : resolveChatAgentName(activeChat),
     activeGroupId ?? undefined,
     activeChat.id,
   )

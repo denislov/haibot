@@ -159,12 +159,20 @@ export function useChat() {
     onDone?: () => void,
     onError?: (e: Error) => void,
     agentId?: string,
+    agentName?: string,
     groupId?: string,
     reconnect?: boolean,
     chatId?: string,
     attachments?: { url: string; name: string; type: string }[],
     regenerate?: boolean,
   ) {
+    if (agentId && !groupId) {
+      assistantMsg.agentId = agentId
+      if (agentName) {
+        assistantMsg.agentName = agentName
+      }
+    }
+
     // Event routing maps (main / single-agent path)
     const msgBlockMap = new Map<string, DisplayBlock>()
     const callBlockMap = new Map<string, DisplayBlock>()
@@ -313,6 +321,13 @@ export function useChat() {
       if (obj === 'message') {
         const type = event.type as string
         const msgId = event.id as string
+        const metadata = (event.metadata as Record<string, unknown> | undefined) || {}
+        if (!assistantMsg.agentId && metadata.agent_id) {
+          assistantMsg.agentId = metadata.agent_id as string
+        }
+        if (!assistantMsg.agentName && metadata.agent_name) {
+          assistantMsg.agentName = metadata.agent_name as string
+        }
 
         if (evStatus === 'in_progress') {
           if (type === 'message') {
@@ -414,6 +429,7 @@ export function useChat() {
       },
       abortController.signal,
       agentId,
+      agentName,
       groupId,
       reconnect,
       chatId,
@@ -431,6 +447,7 @@ export function useChat() {
     onDone?: () => void,
     onError?: (e: Error) => void,
     agentId?: string,
+    agentName?: string,
     groupId?: string,
     reconnect?: boolean,
     chatId?: string,
@@ -460,7 +477,7 @@ export function useChat() {
 
     await _startStream(
       text, sessionId, userId, assistantMsg, scrollToBottom,
-      onDone, onError, agentId, groupId, reconnect, chatId, attachments,
+      onDone, onError, agentId, agentName, groupId, reconnect, chatId, attachments,
     )
   }
 
@@ -472,6 +489,7 @@ export function useChat() {
     onDone?: () => void,
     onError?: (e: Error) => void,
     agentId?: string,
+    agentName?: string,
     groupId?: string,
     chatId?: string,
   ) {
@@ -503,7 +521,7 @@ export function useChat() {
 
     await _startStream(
       lastUserText, sessionId, userId, assistantMsg, scrollToBottom,
-      onDone, onError, agentId, groupId, false, chatId, lastUserAttachments, true,
+      onDone, onError, agentId, agentName, groupId, false, chatId, lastUserAttachments, true,
     )
   }
 

@@ -178,6 +178,7 @@ def build_system_prompt_from_working_dir(
     working_dir: Path | None = None,
     enabled_files: list[str] | None = None,
     agent_id: str | None = None,
+    agent_name: str | None = None,
     heartbeat_enabled: bool = False,
 ) -> str:
     """
@@ -202,6 +203,9 @@ def build_system_prompt_from_working_dir(
             global WORKING_DIR for backward compatibility)
         enabled_files: List of filenames to load (if None, uses config or defaults)
         agent_id: Agent identifier to include in system prompt (optional)
+        agent_name: Human-readable agent name to include in system prompt
+            (optional). When omitted and agent_id is provided, the builder
+            will try to load it from agent config.
         heartbeat_enabled: Whether heartbeat is enabled. When False, filters
             heartbeat section from AGENTS.md to avoid confusing instructions.
 
@@ -229,6 +233,8 @@ def build_system_prompt_from_working_dir(
             try:
                 agent_config = load_agent_config(agent_id)
                 enabled_files = agent_config.system_prompt_files
+                if not agent_name:
+                    agent_name = agent_config.name
             except (ValueError, FileNotFoundError):
                 # Agent not found in config, fallback to global config
                 config = load_config()
@@ -247,10 +253,16 @@ def build_system_prompt_from_working_dir(
 
     # Add agent identity information at the beginning of the prompt
     if agent_id:
+        name_line = (
+            f"Your agent name is `{agent_name}`.\n"
+            if agent_name
+            else ""
+        )
         identity_header = (
             f"# Agent Identity\n\n"
             f"Your agent id is `{agent_id}`. "
-            f"This is your unique identifier in the multi-agent system.\n\n"
+            f"This is your unique identifier in the multi-agent system.\n"
+            f"{name_line}\n"
         )
         prompt = identity_header + prompt
 
