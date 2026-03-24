@@ -15,8 +15,20 @@ export function useChat() {
 
   let abortController: AbortController | null = null
 
+  function _resolveAgentName(
+    agentId: string | undefined,
+    resolver?: (agentId?: string) => string | undefined,
+  ): string | undefined {
+    if (!resolver) return undefined
+    return resolver(agentId)
+  }
+
   // ── Convert history messages → display blocks ──────────────────────────
-  function convertHistoryToDisplay(messages: Record<string, unknown>[]): DisplayMessage[] {
+  function convertHistoryToDisplay(
+    messages: Record<string, unknown>[],
+    resolveAgentName?: (agentId?: string) => string | undefined,
+    fallbackAgentId?: string,
+  ): DisplayMessage[] {
     const result: DisplayMessage[] = []
     const callBlockMap = new Map<string, DisplayBlock>()
     let currentAssistantMsg: DisplayMessage | null = null
@@ -45,8 +57,14 @@ export function useChat() {
       const content = (m.content as ContentItem[]) || []
       const metadata = (m.metadata as Record<string, unknown>) || {}
       const nested = (metadata.metadata as Record<string, unknown>) || {}
-      const agentId = (metadata.agent_id as string | undefined) || (nested.agent_id as string | undefined)
-      const agentName = (metadata.agent_name as string | undefined) || (nested.agent_name as string | undefined)
+      const agentId =
+        (metadata.agent_id as string | undefined) ||
+        (nested.agent_id as string | undefined) ||
+        fallbackAgentId
+      const agentName =
+        (metadata.agent_name as string | undefined) ||
+        (nested.agent_name as string | undefined) ||
+        _resolveAgentName(agentId, resolveAgentName)
 
       if (role === 'user') {
         flushAssistant()
@@ -468,7 +486,14 @@ export function useChat() {
     }
 
     // Add assistant shell
-    displayMessages.value.push({ id: uuidv4(), role: 'assistant', blocks: [], streaming: true })
+    displayMessages.value.push({
+      id: uuidv4(),
+      role: 'assistant',
+      agentId: groupId ? undefined : agentId,
+      agentName: groupId ? undefined : agentName,
+      blocks: [],
+      streaming: true,
+    })
     const assistantMsg = displayMessages.value[displayMessages.value.length - 1]
 
     streaming.value = true
@@ -512,7 +537,14 @@ export function useChat() {
     displayMessages.value.splice(lastUserIdx + 1)
 
     // Add new assistant shell
-    displayMessages.value.push({ id: uuidv4(), role: 'assistant', blocks: [], streaming: true })
+    displayMessages.value.push({
+      id: uuidv4(),
+      role: 'assistant',
+      agentId: groupId ? undefined : agentId,
+      agentName: groupId ? undefined : agentName,
+      blocks: [],
+      streaming: true,
+    })
     const assistantMsg = displayMessages.value[displayMessages.value.length - 1]
 
     streaming.value = true

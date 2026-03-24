@@ -193,6 +193,11 @@ function resolveChatAgentName(chat?: ChatSpec | null): string {
   return 'Assistant'
 }
 
+function resolveAgentNameById(agentId?: string): string | undefined {
+  if (!agentId) return undefined
+  return agentsList.value.find((item) => item.id === agentId)?.name
+}
+
 // ── File upload handling ──────────────────────────────────────────────────
 
 function handleAddFiles(files: File[]) {
@@ -348,7 +353,11 @@ async function selectChat(selected: ChatSpec) {
       selected.meta?.group_id ? undefined : currentAgentId,
       selected.meta?.group_id ? String(selected.meta.group_id) : undefined,
     )
-    const display = chat.convertHistoryToDisplay(history.messages as unknown as Record<string, unknown>[])
+    const display = chat.convertHistoryToDisplay(
+      history.messages as unknown as Record<string, unknown>[],
+      resolveAgentNameById,
+      selected.meta?.group_id ? undefined : currentAgentId,
+    )
     chat.setMessages(display)
     chatWindowRef.value?.scrollToBottom()
 
@@ -576,7 +585,11 @@ onMounted(async () => {
         active.meta?.group_id ? undefined : resolveChatAgentId(active),
         active.meta?.group_id ? String(active.meta.group_id) : undefined,
       )
-      const display = chat.convertHistoryToDisplay(history.messages as unknown as Record<string, unknown>[])
+      const display = chat.convertHistoryToDisplay(
+        history.messages as unknown as Record<string, unknown>[],
+        resolveAgentNameById,
+        active.meta?.group_id ? undefined : resolveChatAgentId(active),
+      )
       chat.setMessages(display)
       chatWindowRef.value?.scrollToBottom()
     } catch {
