@@ -44,6 +44,18 @@ async def create_group_chat(
         )
     if not gc.created_at:
         gc.created_at = datetime.now(timezone.utc).isoformat()
+    if gc.host_agent_id not in config.agents.profiles:
+        raise HTTPException(status_code=400, detail="Host agent not found")
+    missing = [
+        agent_id
+        for agent_id in gc.participant_agent_ids
+        if agent_id not in config.agents.profiles
+    ]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Participant agent(s) not found: {', '.join(missing)}",
+        )
     config.group_chats[gc.id] = gc
     save_config(config)
     return gc
@@ -64,6 +76,18 @@ async def update_group_chat(
         raise HTTPException(
             status_code=404,
             detail=f"Group chat '{gc_id}' not found",
+        )
+    if gc.host_agent_id not in config.agents.profiles:
+        raise HTTPException(status_code=400, detail="Host agent not found")
+    missing = [
+        agent_id
+        for agent_id in gc.participant_agent_ids
+        if agent_id not in config.agents.profiles
+    ]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Participant agent(s) not found: {', '.join(missing)}",
         )
     gc.id = gc_id  # ensure path and body match
     config.group_chats[gc_id] = gc

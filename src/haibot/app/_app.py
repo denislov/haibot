@@ -184,15 +184,18 @@ async def lifespan(
     # --- Multi-agent manager initialization ---
     logger.info("Initializing MultiAgentManager...")
     multi_agent_manager = MultiAgentManager()
+    from .group_chat.manager import GroupChatManager
 
     # Start all configured agents (handled by manager)
     await multi_agent_manager.start_all_configured_agents()
+    group_chat_manager = GroupChatManager()
 
     # --- Model provider manager (non-reloadable, in-memory) ---
     provider_manager = ProviderManager.get_instance()
 
     # Expose to endpoints - multi-agent manager
     app.state.multi_agent_manager = multi_agent_manager
+    app.state.group_chat_manager = group_chat_manager
 
     # Connect DynamicMultiAgentRunner to MultiAgentManager
     if isinstance(runner, DynamicMultiAgentRunner):
@@ -236,6 +239,13 @@ async def lifespan(
                 await multi_agent_mgr.stop_all()
             except Exception as e:
                 logger.error(f"Error stopping MultiAgentManager: {e}")
+
+        group_chat_mgr = getattr(app.state, "group_chat_manager", None)
+        if group_chat_mgr is not None:
+            try:
+                await group_chat_mgr.stop_all()
+            except Exception as e:
+                logger.error(f"Error stopping GroupChatManager: {e}")
 
         logger.info("Application shutdown complete")
 

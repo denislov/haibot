@@ -36,6 +36,7 @@ from ..base import (
     VideoContent,
     TextContent,
 )
+from ..utils import file_url_to_local_path
 
 
 logger = logging.getLogger(__name__)
@@ -209,31 +210,51 @@ class ConsoleChannel(BaseChannel):
             if content_type == ContentType.IMAGE:
                 url = getattr(part, "image_url", None)
                 if url:
+                    local_path = file_url_to_local_path(str(url))
                     return ImageContent(
                         type=ContentType.IMAGE,
-                        image_url=str(self._media_dir / url),
+                        image_url=(
+                            local_path
+                            if local_path and Path(local_path).is_absolute()
+                            else str(self._media_dir / url)
+                        ),
                     )
             elif content_type == ContentType.VIDEO:
                 url = getattr(part, "video_url", None)
                 if url:
+                    local_path = file_url_to_local_path(str(url))
                     return VideoContent(
                         type=ContentType.VIDEO,
-                        video_url=str(self._media_dir / url),
+                        video_url=(
+                            local_path
+                            if local_path and Path(local_path).is_absolute()
+                            else str(self._media_dir / url)
+                        ),
                     )
             elif content_type == ContentType.AUDIO:
                 url = getattr(part, "data", None)
                 if url:
+                    local_path = file_url_to_local_path(str(url))
                     return AudioContent(
                         type=ContentType.AUDIO,
-                        data=str(self._media_dir / url),
+                        data=(
+                            local_path
+                            if local_path and Path(local_path).is_absolute()
+                            else str(self._media_dir / url)
+                        ),
                     )
             elif content_type == ContentType.FILE:
                 url = getattr(part, "file_url", None)
                 if url:
+                    local_path = file_url_to_local_path(str(url))
                     return FileContent(
                         type=ContentType.FILE,
                         filename=getattr(part, "filename", None) or url,
-                        file_url=str(self._media_dir / url),
+                        file_url=(
+                            local_path
+                            if local_path and Path(local_path).is_absolute()
+                            else str(self._media_dir / url)
+                        ),
                     )
             elif content_type == ContentType.TEXT:
                 return TextContent(type=ContentType.TEXT, text=part.text)

@@ -19,6 +19,7 @@ from ..runner.api import router as runner_router
 from .console import router as console_router
 from .group_chats import router as group_chats_router
 from .group_chat_stream import router as group_chat_stream_router
+from .group_chat_runtime import router as group_chat_runtime_router
 from .token_usage import router as token_usage_router
 from .auth import router as auth_router
 from .messages import router as messages_router
@@ -42,6 +43,7 @@ router.include_router(tools_router)
 router.include_router(workspace_router)
 router.include_router(envs_router)
 router.include_router(group_chats_router)
+router.include_router(group_chat_runtime_router)
 router.include_router(group_chat_stream_router)
 router.include_router(token_usage_router)
 router.include_router(auth_router)

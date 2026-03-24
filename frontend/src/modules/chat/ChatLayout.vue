@@ -66,7 +66,7 @@
           :streaming="chat.streaming.value"
           :attachments="attachments"
           @send="sendMessage"
-          @stop="chat.stopStreaming(resolveChatAgentId(chatStore.activeChat))"
+          @stop="chat.stopStreaming(resolveChatAgentId(chatStore.activeChat), currentGroupId ?? undefined)"
           @add-files="handleAddFiles"
           @remove-attachment="handleRemoveAttachment"
         />
@@ -117,8 +117,7 @@ import { useI18n } from 'vue-i18n'
 import { useStorage } from '@vueuse/core'
 import { useChatStore } from '@/stores/chat'
 import { useChat } from './composables/useChat'
-import { createChat } from '@/api/chats'
-import { uploadFile } from '@/api/console'
+import { uploadFile, uploadGroupFile } from '@/api/console'
 import { listAgents } from '@/api/agents'
 import { listGroupChats } from '@/api/group_chats'
 import type { ChatSpec, AgentInfo, FileAttachment } from '@/types'
@@ -186,6 +185,7 @@ function resolveChatAgentId(chat?: ChatSpec | null): string {
 
 function handleAddFiles(files: File[]) {
   const currentAgentId = resolveChatAgentId(chatStore.activeChat)
+  const activeGroupId = currentGroupId.value
 
   for (const file of files) {
     if (file.size > 10 * 1024 * 1024) {
@@ -203,7 +203,11 @@ function handleAddFiles(files: File[]) {
     }
     attachments.value.push(att)
 
-    uploadFile(file, currentAgentId)
+    const uploadPromise = activeGroupId
+      ? uploadGroupFile(file, activeGroupId)
+      : uploadFile(file, currentAgentId)
+
+    uploadPromise
       .then((res) => {
         att.uploadedUrl = res.url
         att.uploading = false
@@ -267,8 +271,7 @@ async function handleSelectGroup(gc: GroupChatConfig) {
     return
   }
   selectedContact.value = { type: 'group', id: gc.id }
-  selectedAgentId.value = fallbackAgentId.value
-  await chatStore.loadChats(selectedAgentId.value)
+  await chatStore.loadChats(undefined, gc.id)
 
   const existingTemp = chatStore.chats.find(c => c.meta?._isTemp && c.meta?.group_id === gc.id)
   if (existingTemp) {
@@ -287,7 +290,7 @@ async function handleSelectGroup(gc: GroupChatConfig) {
     channel: 'console',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    meta: { _isTemp: true, group_id: gc.id, agent_id: selectedAgentId.value },
+    meta: { _isTemp: true, group_id: gc.id },
   }
   chatStore.chats.unshift(temp)
   chatStore.setActiveChat(temp)
@@ -328,7 +331,11 @@ async function selectChat(selected: ChatSpec) {
   historyLoading.value = true
   try {
     const currentAgentId = resolveChatAgentId(selected)
-    const history = await chatStore.getChatHistory(selected.id, currentAgentId)
+    const history = await chatStore.getChatHistory(
+      selected.id,
+      selected.meta?.group_id ? undefined : currentAgentId,
+      selected.meta?.group_id ? String(selected.meta.group_id) : undefined,
+    )
     const display = chat.convertHistoryToDisplay(history.messages as unknown as Record<string, unknown>[])
     chat.setMessages(display)
     chatWindowRef.value?.scrollToBottom()
@@ -342,11 +349,16 @@ async function selectChat(selected: ChatSpec) {
         selected.session_id,
         selected.user_id,
         () => chatWindowRef.value?.scrollIfNearBottom(),
-        () => void chatStore.loadChats(currentAgentId),
+        () => void (
+          activeGroupId
+            ? chatStore.loadChats(undefined, activeGroupId)
+            : chatStore.loadChats(currentAgentId)
+        ),
         (e) => ElMessage.error(t('chat.requestFailed') + ': ' + e.message),
         activeGroupId ? undefined : currentAgentId,
         activeGroupId ?? undefined,
         true, // reconnect
+        selected.id,
       )
     }
   } catch {
@@ -387,13 +399,19 @@ async function sendMessage() {
   if (activeChat.meta?._isTemp) {
     try {
       const currentAgentId = resolveChatAgentId(activeChat)
-      const persisted = await createChat({
+      const persisted = await chatStore.addChat({
         name: text.slice(0, 20),
         session_id: activeChat.session_id,
         user_id: activeChat.user_id,
         channel: 'console',
-        meta: { agent_id: currentAgentId, ...(activeChat.meta?.group_id ? { group_id: activeChat.meta.group_id } : {}) },
-      }, currentAgentId)
+        meta: {
+          ...(activeChat.meta?.group_id ? { group_id: activeChat.meta.group_id } : {}),
+          ...(activeChat.meta?.group_id ? {} : { agent_id: currentAgentId }),
+        },
+      },
+      activeChat.meta?.group_id ? undefined : currentAgentId,
+      activeChat.meta?.group_id ? String(activeChat.meta.group_id) : undefined,
+      )
       const idx = chatStore.chats.findIndex((c) => c.id === activeChat.id)
       if (idx !== -1) chatStore.chats[idx] = persisted
       chatStore.setActiveChat(persisted)
@@ -413,12 +431,16 @@ async function sendMessage() {
     activeChat.session_id,
     activeChat.user_id,
     () => chatWindowRef.value?.scrollIfNearBottom(),
-    () => void chatStore.loadChats(currentAgentId),
+    () => void (
+      activeGroupId
+        ? chatStore.loadChats(undefined, activeGroupId)
+        : chatStore.loadChats(currentAgentId)
+    ),
     (e) => ElMessage.error(t('chat.requestFailed') + ': ' + e.message),
     activeGroupId ? undefined : currentAgentId,
     activeGroupId ?? undefined,
     false, // not reconnect
-    undefined, // chatId
+    activeChat.id,
     sentAttachments.length > 0 ? sentAttachments : undefined,
   )
 }
@@ -434,10 +456,15 @@ async function handleRegenerate() {
     activeChat.session_id,
     activeChat.user_id,
     () => chatWindowRef.value?.scrollIfNearBottom(),
-    () => void chatStore.loadChats(currentAgentId),
+    () => void (
+      activeGroupId
+        ? chatStore.loadChats(undefined, activeGroupId)
+        : chatStore.loadChats(currentAgentId)
+    ),
     (e) => ElMessage.error(t('chat.requestFailed') + ': ' + e.message),
     activeGroupId ? undefined : currentAgentId,
     activeGroupId ?? undefined,
+    activeChat.id,
   )
 }
 
@@ -461,8 +488,13 @@ function handleChatAction(cmd: string, chatItem: ChatSpec) {
       { confirmButtonText: t('common.delete'), cancelButtonText: t('common.cancel'), type: 'warning' },
     )
       .then(async () => {
-        if (!chatItem.meta?._isTemp) await chatStore.removeChat(chatItem.id, resolveChatAgentId(chatItem))
-        else {
+        if (!chatItem.meta?._isTemp) {
+          await chatStore.removeChat(
+            chatItem.id,
+            chatItem.meta?.group_id ? undefined : resolveChatAgentId(chatItem),
+            chatItem.meta?.group_id ? String(chatItem.meta.group_id) : undefined,
+          )
+        } else {
           const idx = chatStore.chats.findIndex((c) => c.id === chatItem.id)
           if (idx !== -1) chatStore.chats.splice(idx, 1)
         }
@@ -482,7 +514,8 @@ async function confirmRename() {
     await chatStore.renameChat(
       renamingChatId.value,
       renameName.value,
-      chatItem ? resolveChatAgentId(chatItem) : undefined,
+      chatItem?.meta?.group_id ? undefined : (chatItem ? resolveChatAgentId(chatItem) : undefined),
+      chatItem?.meta?.group_id ? String(chatItem.meta.group_id) : undefined,
     )
   } catch {
     // ignore
@@ -514,15 +547,20 @@ onMounted(async () => {
     // Restore selectedContact from active chat meta
     if (active.meta?.group_id) {
       selectedContact.value = { type: 'group', id: String(active.meta.group_id) }
+      await chatStore.loadChats(undefined, String(active.meta.group_id))
     } else {
       const agentId = active.meta?.agent_id ? String(active.meta.agent_id) : fallbackAgentId.value
       selectedContact.value = { type: 'agent', id: agentId }
       selectedAgentId.value = agentId
+      await chatStore.loadChats(resolveChatAgentId(active))
     }
-    await chatStore.loadChats(resolveChatAgentId(active))
     historyLoading.value = true
     try {
-      const history = await chatStore.getChatHistory(active.id, resolveChatAgentId(active))
+      const history = await chatStore.getChatHistory(
+        active.id,
+        active.meta?.group_id ? undefined : resolveChatAgentId(active),
+        active.meta?.group_id ? String(active.meta.group_id) : undefined,
+      )
       const display = chat.convertHistoryToDisplay(history.messages as unknown as Record<string, unknown>[])
       chat.setMessages(display)
       chatWindowRef.value?.scrollToBottom()

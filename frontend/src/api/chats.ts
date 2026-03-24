@@ -62,6 +62,7 @@ export async function streamQuery(
   agentId?: string,
   groupId?: string,
   reconnect?: boolean,
+  chatId?: string,
   attachments?: { url: string; name: string; type: string }[],
   regenerate?: boolean,
 ) {
@@ -104,11 +105,8 @@ export async function streamQuery(
 
   let endpoint: string
   if (groupId) {
-    // Group chat → use the multi-agent stream coordinator
-    endpoint = '/console/group-chat/stream'
-    // Merge group-specific fields into the body
-    body.group_chat_id = groupId
-    body.text = input
+    endpoint = `/group-chats/${groupId}/stream`
+    body.chat_id = chatId
   } else {
     endpoint = agentId ? `/agents/${agentId}/console/chat` : '/console/chat'
   }

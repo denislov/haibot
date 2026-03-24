@@ -522,6 +522,21 @@ class GroupChatConfig(BaseModel):
         description="ISO 8601 creation timestamp",
     )
 
+    @model_validator(mode="after")
+    def validate_members(self) -> "GroupChatConfig":
+        """Ensure host/participant settings are coherent."""
+        unique_participants = []
+        seen = set()
+        for agent_id in self.participant_agent_ids:
+            if agent_id == self.host_agent_id:
+                continue
+            if agent_id in seen:
+                continue
+            seen.add(agent_id)
+            unique_participants.append(agent_id)
+        self.participant_agent_ids = unique_participants
+        return self
+
 
 class AgentsConfig(BaseModel):
     """Agents configuration (root config.json only contains references)."""

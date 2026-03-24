@@ -8,9 +8,9 @@ from typing import List
 from pydantic import BaseModel, Field
 
 
-# Re-export ModelInfo from the canonical definition in provider.py to avoid
-# duplicate class definitions.  All runtime code should use this single class.
-from copaw.providers.provider import ModelInfo  # noqa: F401
+# Re-export ModelInfo from the canonical local definition to avoid
+# duplicate class definitions. All runtime code should use this single class.
+from .provider import ModelInfo  # noqa: F401
 
 
 class ProviderDefinition(BaseModel):

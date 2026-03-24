@@ -152,11 +152,11 @@ def agentscope_msg_to_message(
 
     for msg in msgs:
         role = msg.role or "assistant"
-        metadata = {
-            "original_id": msg.id,
-            "original_name": msg.name,
-            "metadata": msg.metadata,
-        }
+        metadata = {}
+        if isinstance(msg.metadata, dict):
+            metadata.update(msg.metadata)
+        metadata["original_id"] = msg.id
+        metadata["original_name"] = msg.name
 
         if isinstance(msg.content, str):
             message = Message(type=MessageType.MESSAGE, role=role)

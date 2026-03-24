@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { streamQuery, stopChat } from '@/api/chats'
+import { stopGroupChat } from '@/api/group_chat_runtime'
 import type { DisplayMessage, DisplayBlock, ContentItem } from '@/types'
 import { uuidv4 } from '@/utils/uuid'
 
@@ -43,8 +44,9 @@ export function useChat() {
       const type = m.type as string
       const content = (m.content as ContentItem[]) || []
       const metadata = (m.metadata as Record<string, unknown>) || {}
-      const agentId = metadata.agent_id as string | undefined
-      const agentName = metadata.agent_name as string | undefined
+      const nested = (metadata.metadata as Record<string, unknown>) || {}
+      const agentId = (metadata.agent_id as string | undefined) || (nested.agent_id as string | undefined)
+      const agentName = (metadata.agent_name as string | undefined) || (nested.agent_name as string | undefined)
 
       if (role === 'user') {
         flushAssistant()
@@ -128,10 +130,14 @@ export function useChat() {
   }
 
   // ── Stop streaming ─────────────────────────────────────────────────────
-  function stopStreaming(agentId?: string) {
+  function stopStreaming(agentId?: string, groupId?: string) {
     abortController?.abort()
     if (activeChatId.value && !activeChatId.value.startsWith('temp-')) {
-      stopChat(activeChatId.value, agentId).catch(() => {})
+      if (groupId) {
+        stopGroupChat(groupId, activeChatId.value).catch(() => {})
+      } else {
+        stopChat(activeChatId.value, agentId).catch(() => {})
+      }
     }
   }
 
@@ -155,6 +161,7 @@ export function useChat() {
     agentId?: string,
     groupId?: string,
     reconnect?: boolean,
+    chatId?: string,
     attachments?: { url: string; name: string; type: string }[],
     regenerate?: boolean,
   ) {
@@ -409,6 +416,7 @@ export function useChat() {
       agentId,
       groupId,
       reconnect,
+      chatId,
       attachments,
       regenerate,
     )
@@ -452,7 +460,7 @@ export function useChat() {
 
     await _startStream(
       text, sessionId, userId, assistantMsg, scrollToBottom,
-      onDone, onError, agentId, groupId, reconnect, attachments,
+      onDone, onError, agentId, groupId, reconnect, chatId, attachments,
     )
   }
 
@@ -465,6 +473,7 @@ export function useChat() {
     onError?: (e: Error) => void,
     agentId?: string,
     groupId?: string,
+    chatId?: string,
   ) {
     if (streaming.value) return
 
@@ -494,7 +503,7 @@ export function useChat() {
 
     await _startStream(
       lastUserText, sessionId, userId, assistantMsg, scrollToBottom,
-      onDone, onError, agentId, groupId, false, lastUserAttachments, true,
+      onDone, onError, agentId, groupId, false, chatId, lastUserAttachments, true,
     )
   }
 
