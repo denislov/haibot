@@ -39,7 +39,7 @@ async def test_group_chat_runtime_persists_transcript(tmp_path: Path):
 
     history = await runtime.get_history("chat-1")
 
-    assert history.status == "idle"
-    assert len(history.messages) == 1
-    assert history.messages[0].metadata["group_id"] == "team"
-    assert history.messages[0].metadata["agent_id"] == "writer"
+    assert history["status"] == "idle"
+    assert len(history["messages"]) == 1
+    assert history["messages"][0]["metadata"]["group_id"] == "team"
+    assert history["messages"][0]["metadata"]["agent_id"] == "writer"

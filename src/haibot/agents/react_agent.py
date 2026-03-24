@@ -14,8 +14,8 @@ from typing import Any, List, Literal, Optional, Type, TYPE_CHECKING
 from agentscope.agent import ReActAgent
 from agentscope.mcp import HttpStatefulClient, StdIOStatefulClient
 from agentscope.memory import InMemoryMemory
-from agentscope.message import Msg
-from agentscope.tool import Toolkit
+from agentscope.message import Msg, TextBlock
+from agentscope.tool import Toolkit, ToolResponse
 from anyio import ClosedResourceError
 from pydantic import BaseModel
 
@@ -91,7 +91,7 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
         enable_memory_manager: bool = True,
         mcp_clients: Optional[List[Any]] = None,
         memory_manager: "MemoryManager | None" = None,
-        request_context: Optional[dict[str, str]] = None,
+        request_context: Optional[dict[str, Any]] = None,
         namesake_strategy: NamesakeStrategy = "skip",
         workspace_dir: Path | None = None,
     ):
@@ -128,6 +128,10 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
 
         # Initialize toolkit with built-in tools
         toolkit = self._create_toolkit(namesake_strategy=namesake_strategy)
+        self._register_group_chat_tools(
+            toolkit,
+            namesake_strategy=namesake_strategy,
+        )
 
         # Load and register skills
         self._register_skills(toolkit)
@@ -267,6 +271,89 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
                         e,
                     )
 
+    def _register_group_chat_tools(
+        self,
+        toolkit: Toolkit,
+        namesake_strategy: NamesakeStrategy = "skip",
+    ) -> None:
+        """Register host-only delegation tool for group chat coordination."""
+        if not self._request_context:
+            return
+
+        role = self._request_context.get("group_chat_role")
+        delegate_callback = self._request_context.get(
+            "group_delegate_callback",
+        )
+        participant_ids = {
+            str(agent_id)
+            for agent_id in (
+                self._request_context.get("group_participant_agent_ids") or []
+            )
+        }
+        if role != "host" or not callable(delegate_callback):
+            return
+
+        async def delegate_to_agent(
+            agent_id: str,
+            task: str,
+        ) -> ToolResponse:
+            """Delegate a subtask to a participant agent in the same group.
+
+            Args:
+                agent_id: Exact participant agent id to delegate to.
+                task: Concrete subtask for that participant.
+            """
+            target = (agent_id or "").strip()
+            if not target:
+                return ToolResponse(
+                    content=[
+                        TextBlock(
+                            type="text",
+                            text="Error: agent_id is required.",
+                        ),
+                    ],
+                )
+            if participant_ids and target not in participant_ids:
+                return ToolResponse(
+                    content=[
+                        TextBlock(
+                            type="text",
+                            text=(
+                                f"Error: '{target}' is not a valid "
+                                "participant in this group chat."
+                            ),
+                        ),
+                    ],
+                )
+
+            instruction = (task or "").strip()
+            if not instruction:
+                return ToolResponse(
+                    content=[
+                        TextBlock(
+                            type="text",
+                            text="Error: task is required.",
+                        ),
+                    ],
+                )
+
+            result = await delegate_callback(target, instruction)
+            return ToolResponse(
+                content=[
+                    TextBlock(
+                        type="text",
+                        text=result,
+                    ),
+                ],
+            )
+
+        delegate_to_agent.__name__ = "delegate_to_agent"
+        toolkit.register_tool_function(
+            delegate_to_agent,
+            namesake_strategy=namesake_strategy,
+        )
+        logger.debug("Registered group chat delegation tool")
+
     def _build_sys_prompt(self) -> str:
         """Build system prompt from working dir files and env context.
 
@@ -303,7 +390,62 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
         if self._env_context is not None:
             sys_prompt = sys_prompt + "\n\n" + self._env_context
 
+        group_prompt = self._build_group_chat_prompt()
+        if group_prompt:
+            sys_prompt = sys_prompt + "\n\n" + group_prompt
+
         return sys_prompt
+
+    def _build_group_chat_prompt(self) -> str:
+        """Build extra prompt instructions for group chat roles."""
+        if not self._request_context:
+            return ""
+
+        role = self._request_context.get("group_chat_role")
+        if not role:
+            return ""
+
+        group_name = str(
+            self._request_context.get("group_chat_name") or "this group chat",
+        )
+        host_agent_id = str(
+            self._request_context.get("group_host_agent_id") or "",
+        )
+        participant_ids = [
+            str(agent_id)
+            for agent_id in (
+                self._request_context.get("group_participant_agent_ids") or []
+            )
+        ]
+
+        if role == "host":
+            participants = (
+                ", ".join(f"`{agent_id}`" for agent_id in participant_ids)
+                if participant_ids
+                else "none"
+            )
+            return (
+                "## Group Chat Role\n"
+                f"You are the host of {group_name}.\n"
+                f"Available participant agents: {participants}.\n"
+                "When you need specialized work, call the "
+                "`delegate_to_agent` tool with an exact participant id "
+                "and a concrete subtask. After delegation returns, "
+                "synthesize the final answer for the user."
+            )
+
+        delegated_by = str(
+            self._request_context.get("delegated_by_agent_id")
+            or host_agent_id
+            or "the host",
+        )
+        return (
+            "## Group Chat Role\n"
+            f"You are a participant in {group_name}.\n"
+            f"You are responding to a delegated task from `{delegated_by}`.\n"
+            "Focus on completing the requested subtask clearly and directly. "
+            "Do not delegate further unless explicitly instructed."
+        )
 
     def _setup_memory_manager(
         self,

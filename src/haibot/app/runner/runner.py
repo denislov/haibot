@@ -273,28 +273,26 @@ class AgentRunner(Runner):
 
             # Load agent-specific configuration
             agent_config = load_agent_config(self.agent_id)
+            channel_meta = dict(getattr(request, "channel_meta", None) or {})
+            request_context = {
+                "session_id": session_id,
+                "user_id": user_id,
+                "channel": channel,
+                **channel_meta,
+                "agent_id": self.agent_id,
+            }
+            if approved_tool_call:
+                request_context["forced_tool_call_json"] = json.dumps(
+                    approved_tool_call,
+                    ensure_ascii=False,
+                )
 
             agent = HaiBotAgent(
                 agent_config=agent_config,
                 env_context=env_context,
                 mcp_clients=mcp_clients,
                 memory_manager=self.memory_manager,
-                request_context={
-                    "session_id": session_id,
-                    "user_id": user_id,
-                    "channel": channel,
-                    "agent_id": self.agent_id,
-                    **(
-                        {
-                            "forced_tool_call_json": json.dumps(
-                                approved_tool_call,
-                                ensure_ascii=False,
-                            ),
-                        }
-                        if approved_tool_call
-                        else {}
-                    ),
-                },
+                request_context=request_context,
                 workspace_dir=self.workspace_dir,
             )
             await agent.register_mcp_clients()
