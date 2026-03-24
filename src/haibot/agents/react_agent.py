@@ -520,6 +520,9 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
         host_agent_id = str(
             self._request_context.get("group_host_agent_id") or "",
         )
+        user_request = str(
+            self._request_context.get("group_user_request_text") or "",
+        ).strip()
         participant_ids = [
             str(agent_id)
             for agent_id in (
@@ -533,29 +536,73 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
                 if participant_ids
                 else "none"
             )
+            user_request_line = (
+                f"\nCurrent user request: {user_request}"
+                if user_request
+                else ""
+            )
             return (
                 "## Group Chat Role\n"
                 f"You are the host of {group_name}.\n"
                 f"Available participant agents: {participants}.\n"
-                "When you need specialized work, call the "
-                "`delegate_to_agent` tool with an exact participant id "
-                "and a concrete subtask. For parallel work across multiple "
-                "participants, call `delegate_to_agents` with a JSON array "
-                "string of `{agent_id, task}` objects. After delegation returns, "
-                "synthesize the final answer for the user."
+                f"{user_request_line}\n"
+                "You own the final user-facing answer.\n"
+                "Reply directly when you already have enough information.\n"
+                "Delegate only when a participant has clear specialized value "
+                "or when work can proceed independently in parallel.\n"
+                "When delegating:\n"
+                "1. Use exact participant ids only.\n"
+                "2. Give self-contained subtasks with the goal, key context, "
+                "constraints, and desired output.\n"
+                "3. Use `delegate_to_agent` for a single specialist.\n"
+                "4. Use `delegate_to_agents` for independent parallel subtasks.\n"
+                "After delegation returns:\n"
+                "1. Synthesize the final answer for the user.\n"
+                "2. Resolve conflicts or uncertainty instead of dumping raw "
+                "tool output.\n"
+                "3. Do not expose internal coordination unless it helps the user."
             )
 
+        delegated_task = str(
+            self._request_context.get("delegated_task") or "",
+        ).strip()
         delegated_by = str(
             self._request_context.get("delegated_by_agent_id")
             or host_agent_id
             or "the host",
         )
+        if role == "participant_direct":
+            user_request_line = (
+                f"\nCurrent user request: {user_request}"
+                if user_request
+                else ""
+            )
+            return (
+                "## Group Chat Role\n"
+                f"You are a participant in {group_name}.\n"
+                f"{user_request_line}\n"
+                "The user addressed you directly in the group chat.\n"
+                "Answer the requested sub-question directly and clearly.\n"
+                "Stay within your area of expertise, state assumptions when "
+                "needed, and do not pretend to coordinate other agents."
+            )
+
+        delegated_task_line = (
+            f"\nDelegated task: {delegated_task}"
+            if delegated_task
+            else ""
+        )
         return (
             "## Group Chat Role\n"
             f"You are a participant in {group_name}.\n"
             f"You are responding to a delegated task from `{delegated_by}`.\n"
-            "Focus on completing the requested subtask clearly and directly. "
-            "Do not delegate further unless explicitly instructed."
+            f"{delegated_task_line}\n"
+            "Your audience is the host, not the end user.\n"
+            "Return concise findings the host can integrate into a final answer.\n"
+            "Lead with the answer or result, then include only the most useful "
+            "supporting evidence, assumptions, or uncertainty.\n"
+            "Do not restate the whole conversation and do not delegate further "
+            "unless explicitly instructed."
         )
 
     def _setup_memory_manager(

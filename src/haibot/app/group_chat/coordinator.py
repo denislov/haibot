@@ -282,6 +282,7 @@ class GroupChatCoordinator:
                     "chat_id": body.chat_id,
                     "public_group_session_id": body.session_id,
                     "delegated_by_agent_id": group_config.host_agent_id,
+                    "delegated_task": task,
                 },
             }
             result_collector = _ParticipantResultCollector()
@@ -373,6 +374,7 @@ class GroupChatCoordinator:
                             group_config.participant_agent_ids,
                         ),
                         "group_delegate_callback": delegate_callback,
+                        "group_user_request_text": request_text,
                         "chat_id": body.chat_id,
                         "public_group_session_id": body.session_id,
                     },
@@ -419,11 +421,12 @@ class GroupChatCoordinator:
                         "group_id": runtime.group_id,
                         "group_chat_id": runtime.group_id,
                         "group_chat_name": group_config.name,
-                        "group_chat_role": "participant",
+                        "group_chat_role": "participant_direct",
                         "group_host_agent_id": group_config.host_agent_id,
                         "group_participant_agent_ids": list(
                             group_config.participant_agent_ids,
                         ),
+                        "group_user_request_text": request_text,
                         "chat_id": body.chat_id,
                         "public_group_session_id": body.session_id,
                     },
@@ -433,7 +436,7 @@ class GroupChatCoordinator:
                     runtime.group_id,
                     target_agent_id,
                     payload,
-                    extra_metadata={"group_chat_role": "participant"},
+                    extra_metadata={"group_chat_role": "participant_direct"},
                 ):
                     collector.consume_sse_chunk(chunk)
                     yield chunk
@@ -457,11 +460,12 @@ class GroupChatCoordinator:
                         "group_id": runtime.group_id,
                         "group_chat_id": runtime.group_id,
                         "group_chat_name": group_config.name,
-                        "group_chat_role": "participant",
+                        "group_chat_role": "participant_direct",
                         "group_host_agent_id": group_config.host_agent_id,
                         "group_participant_agent_ids": list(
                             group_config.participant_agent_ids,
                         ),
+                        "group_user_request_text": request_text,
                         "chat_id": body.chat_id,
                         "public_group_session_id": body.session_id,
                     },
@@ -472,7 +476,7 @@ class GroupChatCoordinator:
                         runtime.group_id,
                         agent_id,
                         payload,
-                        extra_metadata={"group_chat_role": "participant"},
+                        extra_metadata={"group_chat_role": "participant_direct"},
                     ):
                         await queue.put(chunk)
                 except Exception:
