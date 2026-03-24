@@ -9,6 +9,7 @@
           v-for="(msg, idx) in messages"
           :key="msg.id"
           :message="msg"
+          :mode="mode"
           :is-last="msg.role === 'assistant' && isLastAssistant(idx)"
           :is-streaming="streaming"
           :allow-regenerate="allowRegenerate"
@@ -40,6 +41,7 @@ const props = defineProps<{
   messages: DisplayMessage[]
   streaming?: boolean
   allowRegenerate?: boolean
+  mode?: 'single' | 'group'
 }>()
 
 defineEmits<{ regenerate: [] }>()

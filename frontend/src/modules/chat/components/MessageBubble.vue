@@ -31,11 +31,28 @@
 
     <!-- Assistant message -->
     <template v-else>
-      <!-- Agent name badge (always shown) -->
-      <div class="agent-name-badge">
-        {{ message.agentName || 'Assistant' }}
+      <div
+        class="assistant-meta"
+        :class="mode === 'group' ? 'assistant-meta--group' : 'assistant-meta--single'"
+      >
+        <span
+          v-if="mode === 'group'"
+          class="assistant-avatar"
+          :style="{ background: avatarColor }"
+        >
+          {{ assistantInitial }}
+        </span>
+        <span
+          class="assistant-name"
+          :class="mode === 'group' ? 'assistant-name--group' : 'assistant-name--single'"
+        >
+          {{ assistantLabel }}
+        </span>
       </div>
-      <div class="msg-assistant" :class="{ 'group-agent': message.agentId }">
+      <div
+        class="msg-assistant"
+        :class="mode === 'group' ? 'msg-assistant--group' : 'msg-assistant--single'"
+      >
         <!-- Typing indicator (waiting for first content) -->
         <div v-if="message.streaming && message.blocks.length === 0" class="typing-indicator">
           <span class="dot" /><span class="dot" /><span class="dot" />
@@ -103,6 +120,7 @@ import MarkdownBlock from './MarkdownBlock.vue'
 
 const props = defineProps<{
   message: DisplayMessage
+  mode?: 'single' | 'group'
   isLast?: boolean
   isStreaming?: boolean
   allowRegenerate?: boolean
@@ -115,6 +133,18 @@ const copied = ref(false)
 const hasContent = computed(() =>
   props.message.blocks.some((b) => b.kind === 'text' && b.text?.trim())
 )
+
+const assistantLabel = computed(() => props.message.agentName || 'Assistant')
+const assistantInitial = computed(() => (assistantLabel.value.charAt(0) || 'A').toUpperCase())
+const avatarColor = computed(() => {
+  const seed = props.message.agentId || assistantLabel.value
+  let hash = 0
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) & 0xffff
+  }
+  const palette = ['#5b5bd6', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
+  return palette[hash % palette.length]
+})
 
 function copyMessage() {
   const textBlocks = props.message.blocks
@@ -211,11 +241,43 @@ function copyMessage() {
 
 /* ── Assistant message ── */
 .msg-assistant {
-  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 12px;
   position: relative;
+}
+
+.msg-assistant--single {
+  align-self: flex-start;
+  width: fit-content;
+  max-width: min(720px, calc(100% - 56px));
+  margin-right: 56px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.msg-assistant--group {
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px 16px 22px;
+  box-shadow: var(--shadow-sm);
+}
+
+.msg-assistant--group::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--primary);
+  opacity: 0.55;
 }
 
 /* ── Typing indicator ── */
@@ -287,17 +349,54 @@ function copyMessage() {
 }
 @keyframes blink { 50% { opacity: 0; } }
 
-.agent-name-badge {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--el-color-primary, var(--primary));
-  margin-bottom: 4px;
-  padding-left: 2px;
-  opacity: 0.85;
+.assistant-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
 }
 
-.msg-assistant.group-agent {
-  border-left: 2px solid var(--el-color-primary-light-5, var(--primary-light));
-  padding-left: 8px;
+.assistant-meta--single {
+  padding-left: 2px;
+}
+
+.assistant-meta--group {
+  padding-left: 2px;
+}
+
+.assistant-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
+
+.assistant-name {
+  display: inline-flex;
+  align-items: center;
+}
+
+.assistant-name--single {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.assistant-name--group {
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 </style>

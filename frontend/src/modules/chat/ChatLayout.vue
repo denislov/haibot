@@ -58,6 +58,7 @@
           v-else
           ref="chatWindowRef"
           :messages="chat.displayMessages.value"
+          :mode="currentGroupId ? 'group' : 'single'"
           :streaming="chat.streaming.value"
           :allow-regenerate="!currentGroupId"
           @regenerate="handleRegenerate"
