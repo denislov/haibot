@@ -80,7 +80,7 @@
             <el-icon v-else><Select /></el-icon>
           </button>
           <button
-            v-if="isLast && !isStreaming"
+            v-if="allowRegenerate && isLast && !isStreaming"
             class="action-btn"
             :title="$t('chat.regenerate')"
             @click="$emit('regenerate')"
@@ -105,6 +105,7 @@ const props = defineProps<{
   message: DisplayMessage
   isLast?: boolean
   isStreaming?: boolean
+  allowRegenerate?: boolean
 }>()
 
 defineEmits<{ regenerate: [] }>()

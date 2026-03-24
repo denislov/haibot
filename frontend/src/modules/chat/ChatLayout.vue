@@ -59,6 +59,7 @@
           ref="chatWindowRef"
           :messages="chat.displayMessages.value"
           :streaming="chat.streaming.value"
+          :allow-regenerate="!currentGroupId"
           @regenerate="handleRegenerate"
         />
         <ChatInput

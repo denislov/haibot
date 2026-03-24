@@ -32,11 +32,38 @@ async def test_register_group_chat_tools_registers_delegate_tool():
     HaiBotAgent._register_group_chat_tools(agent, toolkit)
 
     assert "delegate_to_agent" in toolkit.registered
+    assert "delegate_to_agents" in toolkit.registered
     response = await toolkit.registered["delegate_to_agent"](
         "writer",
         "draft section 2",
     )
     assert response.content[0]["text"] == "writer:draft section 2"
+
+
+@pytest.mark.asyncio
+async def test_delegate_to_agents_runs_parallel_batch():
+    async def callback(agent_id: str, task: str) -> str:
+        return f"{agent_id}:{task}"
+
+    toolkit = _FakeToolkit()
+    agent = object.__new__(HaiBotAgent)
+    agent._request_context = {  # pylint: disable=protected-access
+        "group_chat_role": "host",
+        "group_participant_agent_ids": ["writer", "reviewer"],
+        "group_delegate_callback": callback,
+        "group_chat_name": "Team",
+    }
+
+    HaiBotAgent._register_group_chat_tools(agent, toolkit)
+
+    response = await toolkit.registered["delegate_to_agents"](
+        '[{"agent_id":"writer","task":"draft"},{"agent_id":"reviewer","task":"review"}]',
+    )
+    text = response.content[0]["text"]
+    assert "[writer]" in text
+    assert "writer:draft" in text
+    assert "[reviewer]" in text
+    assert "reviewer:review" in text
 
 
 def test_build_group_chat_prompt_for_host_mentions_delegate_tool():
@@ -50,5 +77,6 @@ def test_build_group_chat_prompt_for_host_mentions_delegate_tool():
     prompt = HaiBotAgent._build_group_chat_prompt(agent)
 
     assert "delegate_to_agent" in prompt
+    assert "delegate_to_agents" in prompt
     assert "`writer`" in prompt
     assert "Research Team" in prompt

@@ -6,6 +6,7 @@ with integrated tools, skills, and memory management.
 """
 
 import asyncio
+import json
 import logging
 import os
 from pathlib import Path
@@ -293,6 +294,10 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
         if role != "host" or not callable(delegate_callback):
             return
 
+        async def _delegate_one(target: str, instruction: str) -> str:
+            result = await delegate_callback(target, instruction)
+            return result
+
         async def delegate_to_agent(
             agent_id: str,
             task: str,
@@ -337,7 +342,7 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
                     ],
                 )
 
-            result = await delegate_callback(target, instruction)
+            result = await _delegate_one(target, instruction)
             return ToolResponse(
                 content=[
                     TextBlock(
@@ -347,9 +352,113 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
                 ],
             )
 
+        async def delegate_to_agents(
+            delegations_json: str,
+        ) -> ToolResponse:
+            """Delegate multiple subtasks to participant agents in parallel.
+
+            Args:
+                delegations_json: JSON array string like
+                    `[{"agent_id":"writer","task":"..."}, ...]`.
+            """
+            raw = (delegations_json or "").strip()
+            if not raw:
+                return ToolResponse(
+                    content=[
+                        TextBlock(
+                            type="text",
+                            text="Error: delegations_json is required.",
+                        ),
+                    ],
+                )
+
+            try:
+                delegations = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                return ToolResponse(
+                    content=[
+                        TextBlock(
+                            type="text",
+                            text=f"Error: invalid delegations_json: {exc}",
+                        ),
+                    ],
+                )
+
+            if not isinstance(delegations, list) or not delegations:
+                return ToolResponse(
+                    content=[
+                        TextBlock(
+                            type="text",
+                            text="Error: delegations_json must be a non-empty JSON array.",
+                        ),
+                    ],
+                )
+
+            normalized: list[tuple[str, str]] = []
+            for item in delegations:
+                if not isinstance(item, dict):
+                    return ToolResponse(
+                        content=[
+                            TextBlock(
+                                type="text",
+                                text="Error: each delegation must be an object.",
+                            ),
+                        ],
+                    )
+                target = str(item.get("agent_id") or "").strip()
+                instruction = str(item.get("task") or "").strip()
+                if not target or not instruction:
+                    return ToolResponse(
+                        content=[
+                            TextBlock(
+                                type="text",
+                                text=(
+                                    "Error: each delegation must include "
+                                    "non-empty agent_id and task."
+                                ),
+                            ),
+                        ],
+                    )
+                if participant_ids and target not in participant_ids:
+                    return ToolResponse(
+                        content=[
+                            TextBlock(
+                                type="text",
+                                text=(
+                                    f"Error: '{target}' is not a valid "
+                                    "participant in this group chat."
+                                ),
+                            ),
+                        ],
+                    )
+                normalized.append((target, instruction))
+
+            results = await asyncio.gather(
+                *[
+                    _delegate_one(target, instruction)
+                    for target, instruction in normalized
+                ],
+            )
+            rendered = []
+            for (target, _instruction), result in zip(normalized, results):
+                rendered.append(f"[{target}]\n{result}")
+            return ToolResponse(
+                content=[
+                    TextBlock(
+                        type="text",
+                        text="\n\n".join(rendered),
+                    ),
+                ],
+            )
+
         delegate_to_agent.__name__ = "delegate_to_agent"
+        delegate_to_agents.__name__ = "delegate_to_agents"
         toolkit.register_tool_function(
             delegate_to_agent,
+            namesake_strategy=namesake_strategy,
+        )
+        toolkit.register_tool_function(
+            delegate_to_agents,
             namesake_strategy=namesake_strategy,
         )
         logger.debug("Registered group chat delegation tool")
@@ -430,7 +539,9 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
                 f"Available participant agents: {participants}.\n"
                 "When you need specialized work, call the "
                 "`delegate_to_agent` tool with an exact participant id "
-                "and a concrete subtask. After delegation returns, "
+                "and a concrete subtask. For parallel work across multiple "
+                "participants, call `delegate_to_agents` with a JSON array "
+                "string of `{agent_id, task}` objects. After delegation returns, "
                 "synthesize the final answer for the user."
             )
 

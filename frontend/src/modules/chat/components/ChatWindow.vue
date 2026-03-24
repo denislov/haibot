@@ -11,6 +11,7 @@
           :message="msg"
           :is-last="msg.role === 'assistant' && isLastAssistant(idx)"
           :is-streaming="streaming"
+          :allow-regenerate="allowRegenerate"
           @regenerate="$emit('regenerate')"
         />
       </template>
@@ -38,6 +39,7 @@ import MessageBubble from './MessageBubble.vue'
 const props = defineProps<{
   messages: DisplayMessage[]
   streaming?: boolean
+  allowRegenerate?: boolean
 }>()
 
 defineEmits<{ regenerate: [] }>()
