@@ -429,7 +429,6 @@ export function useChat() {
       },
       abortController.signal,
       agentId,
-      agentName,
       groupId,
       reconnect,
       chatId,
