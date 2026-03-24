@@ -274,6 +274,9 @@ class AgentRunner(Runner):
             # Load agent-specific configuration
             agent_config = load_agent_config(self.agent_id)
             channel_meta = dict(getattr(request, "channel_meta", None) or {})
+            delegate_callback_token = str(
+                channel_meta.pop("group_delegate_callback_token", "") or "",
+            )
             request_context = {
                 "session_id": session_id,
                 "user_id": user_id,
@@ -281,6 +284,14 @@ class AgentRunner(Runner):
                 **channel_meta,
                 "agent_id": self.agent_id,
             }
+            if delegate_callback_token:
+                from ..group_chat.delegation_registry import (
+                    get_delegate_callback,
+                )
+
+                callback = get_delegate_callback(delegate_callback_token)
+                if callback is not None:
+                    request_context["group_delegate_callback"] = callback
             if approved_tool_call:
                 request_context["forced_tool_call_json"] = json.dumps(
                     approved_tool_call,

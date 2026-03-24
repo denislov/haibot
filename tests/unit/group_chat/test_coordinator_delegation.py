@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from haibot.app.group_chat.coordinator import GroupChatCoordinator
+from haibot.app.group_chat.delegation_registry import get_delegate_callback
 from haibot.app.group_chat.models import GroupChatStreamRequest
 from haibot.config.config import GroupChatConfig
 
@@ -105,3 +106,81 @@ async def test_delegate_callback_rejects_unknown_participant():
     result = await callback("unknown", "task")
 
     assert "not a participant" in result
+
+
+@pytest.mark.asyncio
+async def test_host_stream_registers_serializable_callback_token():
+    coordinator = GroupChatCoordinator()
+    runtime = SimpleNamespace(
+        group_id="team",
+        media_dir=Path("/tmp/team-media"),
+    )
+    append_calls = []
+
+    async def append_transcript_messages(session_id, user_id, messages):
+        append_calls.append((session_id, user_id, messages))
+
+    runtime.append_transcript_messages = append_transcript_messages
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace()))
+    group_config = GroupChatConfig(
+        id="team",
+        name="Team",
+        host_agent_id="host",
+        participant_agent_ids=["writer"],
+        max_rounds=6,
+    )
+    body = GroupChatStreamRequest(
+        chat_id="chat-1",
+        session_id="public-session",
+        user_id="user-1",
+        input=[
+            {
+                "role": "user",
+                "type": "message",
+                "content": [{"type": "text", "text": "Help me outline this chapter."}],
+            },
+        ],
+    )
+
+    seen_payload = {}
+
+    async def fake_stream_single_agent(
+        request,
+        group_id,
+        agent_id,
+        payload,
+        extra_metadata=None,
+    ):
+        seen_payload.update(payload)
+        token = payload["meta"].get("group_delegate_callback_token")
+        assert isinstance(token, str) and token
+        assert callable(get_delegate_callback(token))
+        assert "group_delegate_callback" not in payload["meta"]
+        yield (
+            'data: {"object":"message","status":"in_progress","id":"m1",'
+            '"type":"message","role":"assistant","metadata":{"agent_id":"host"}}\n\n'
+        )
+        yield (
+            'data: {"object":"content","status":"in_progress","msg_id":"m1",'
+            '"type":"text","delta":true,"text":"host answer"}\n\n'
+        )
+        yield (
+            'data: {"object":"message","status":"completed","id":"m1",'
+            '"type":"message","role":"assistant","metadata":{"agent_id":"host"}}\n\n'
+        )
+
+    coordinator._stream_single_agent = fake_stream_single_agent  # type: ignore[method-assign]
+
+    chunks = []
+    async for chunk in coordinator.stream_turn(
+        request,
+        runtime,
+        group_config,
+        body,
+    ):
+        chunks.append(chunk)
+
+    token = seen_payload["meta"]["group_delegate_callback_token"]
+    assert get_delegate_callback(token) is None
+    assert len(chunks) == 3
+    assert append_calls

@@ -18,6 +18,10 @@ from agentscope_runtime.engine.schemas.agent_schemas import (
 
 from ...config import GroupChatConfig
 from ..channels.console.channel import ConsoleChannel
+from .delegation_registry import (
+    register_delegate_callback,
+    unregister_delegate_callback,
+)
 from .models import GroupChatStreamRequest
 from .runtime import GroupChatRuntime
 from .transcript import GroupTranscriptCollector, flatten_metadata
@@ -354,6 +358,9 @@ class GroupChatCoordinator:
                     body,
                     queue,
                 )
+                callback_token = register_delegate_callback(
+                    delegate_callback,
+                )
                 payload = {
                     "channel_id": "console",
                     "sender_id": body.user_id,
@@ -373,7 +380,7 @@ class GroupChatCoordinator:
                         "group_participant_agent_ids": list(
                             group_config.participant_agent_ids,
                         ),
-                        "group_delegate_callback": delegate_callback,
+                        "group_delegate_callback_token": callback_token,
                         "group_user_request_text": request_text,
                         "chat_id": body.chat_id,
                         "public_group_session_id": body.session_id,
@@ -400,12 +407,15 @@ class GroupChatCoordinator:
                         await queue.put(None)
 
                 asyncio.create_task(_host_producer())
-                while True:
-                    item = await queue.get()
-                    if item is None:
-                        break
-                    collector.consume_sse_chunk(item)
-                    yield item
+                try:
+                    while True:
+                        item = await queue.get()
+                        if item is None:
+                            break
+                        collector.consume_sse_chunk(item)
+                        yield item
+                finally:
+                    unregister_delegate_callback(callback_token)
             else:
                 payload = {
                     "channel_id": "console",
