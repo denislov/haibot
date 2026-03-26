@@ -23,6 +23,11 @@ from .view_image import view_image
 from .memory_search import create_memory_search_tool
 from .get_current_time import get_current_time, set_user_timezone
 from .get_token_usage import get_token_usage
+from .external_cli import (
+    run_claude_code_cli,
+    run_codex_cli,
+    run_gemini_cli,
+)
 
 __all__ = [
     "execute_python_code",
@@ -43,4 +48,7 @@ __all__ = [
     "get_current_time",
     "set_user_timezone",
     "get_token_usage",
+    "run_claude_code_cli",
+    "run_codex_cli",
+    "run_gemini_cli",
 ]

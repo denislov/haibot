@@ -49,6 +49,9 @@ from .tools import (
     view_image,
     write_file,
     create_memory_search_tool,
+    run_claude_code_cli,
+    run_codex_cli,
+    run_gemini_cli,
 )
 from .utils import process_file_and_media_blocks_in_message
 from ..constant import (
@@ -229,6 +232,9 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
             "get_current_time": get_current_time,
             "set_user_timezone": set_user_timezone,
             "get_token_usage": get_token_usage,
+            "run_claude_code_cli": run_claude_code_cli,
+            "run_codex_cli": run_codex_cli,
+            "run_gemini_cli": run_gemini_cli,
         }
 
         multimodal = get_active_model_supports_multimodal()

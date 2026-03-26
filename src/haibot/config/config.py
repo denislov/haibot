@@ -953,6 +953,21 @@ def _default_builtin_tools() -> Dict[str, BuiltinToolConfig]:
             enabled=True,
             description="Get llm token usage",
         ),
+        "run_claude_code_cli": BuiltinToolConfig(
+            name="run_claude_code_cli",
+            enabled=True,
+            description="Run Claude Code CLI with a prompt",
+        ),
+        "run_codex_cli": BuiltinToolConfig(
+            name="run_codex_cli",
+            enabled=True,
+            description="Run Codex CLI with a prompt",
+        ),
+        "run_gemini_cli": BuiltinToolConfig(
+            name="run_gemini_cli",
+            enabled=True,
+            description="Run Gemini CLI with a prompt",
+        ),
     }
 
 
