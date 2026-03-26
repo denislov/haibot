@@ -16,7 +16,7 @@ export interface ContentItem {
   type: 'text' | 'image' | 'data' | 'file' | 'audio' | 'video' | 'refusal'
   text?: string
   url?: string
-  data?: Record<string, unknown>
+  data?: Record<string, unknown> | string
   index?: number
   delta?: boolean
   msg_id?: string
@@ -27,6 +27,8 @@ export interface ContentItem {
   image_url?: { url: string }
   video_url?: string
   format?: string
+  file_url?: string
+  filename?: string
 }
 
 export interface AgentMessage {
@@ -67,12 +69,17 @@ export interface FileAttachment {
 // UI display model
 export interface DisplayBlock {
   id: string
-  kind: 'text' | 'tool_call' | 'tool_output' | 'reasoning'
+  kind: 'text' | 'tool_call' | 'tool_output' | 'reasoning' | 'image' | 'audio' | 'video'
   text?: string
+  mediaUrl?: string
+  mediaFormat?: string
+  mediaName?: string
   toolType?: string
   toolName?: string
   toolArgs?: string
   toolOutput?: string
+  toolStatus?: 'running' | 'completed' | 'failed'
+  callId?: string
   expanded?: boolean
   loading?: boolean
 }

@@ -111,16 +111,38 @@ def _is_local_file_url(url: str) -> bool:
 
 
 def _abspath_from_url(url: str) -> str:
-    """Extract absolute path from file:// URL."""
+    """Extract absolute path from file:// URL.
+
+    Keeps Unix paths rooted at ``/`` and normalizes Windows drive paths to
+    ``C:/...`` instead of ``/C:/...`` so downstream preview routing can build
+    stable URLs on every platform.
+    """
     s = url.strip()
-    if s.lower().startswith("file:"):
-        s = s[5:]
+    lower = s.lower()
+    if lower.startswith("file://localhost/"):
+        s = s[len("file://localhost") :]
+    elif lower.startswith("file://"):
+        s = s[len("file://") :]
+    elif lower.startswith("file:"):
+        s = s[len("file:") :]
+
+    s = s.replace("\\", "/")
+
+    if len(s) >= 4 and s.startswith("//") and s[2].isalpha() and s[3] == ":":
+        s = s[2:]
+
+    if len(s) >= 2 and s[0].isalpha() and s[1] == ":":
+        return s
+
+    if len(s) >= 3 and s.startswith("/") and s[1].isalpha() and s[2] == ":":
+        return s[1:]
+
     s = "/" + s.lstrip("/")
     return s
 
 
 def _resolve_content_url(url: str) -> str:
-    """If url is local, return filename only; frontend builds URL."""
+    """Normalize local content refs to absolute paths for preview routing."""
     if not isinstance(url, str):
         return url
     if not _is_local_file_url(url):
