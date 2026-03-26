@@ -1,19 +1,28 @@
 <template>
-  <div class="tc-block" :class="{ 'tc-active': loading }">
+  <div
+    class="tc-block"
+    :class="{
+      'tc-active': loading,
+      'tc-complete': statusTone === 'completed',
+      'tc-failed': statusTone === 'failed',
+    }"
+  >
     <div
       class="tc-header"
       :class="{ 'tc-loading': loading }"
-      @click="!loading && $emit('toggle')"
+      @click="$emit('toggle')"
     >
       <el-icon class="tc-icon spin-icon" v-if="loading"><Loading /></el-icon>
       <el-icon class="tc-icon" v-else-if="toolType === 'mcp_call'"><Connection /></el-icon>
       <el-icon class="tc-icon" v-else><Tools /></el-icon>
       <span class="tc-name">{{ toolName || toolType }}</span>
-      <span v-if="loading" class="tc-running">{{ $t('chat.running') }}</span>
-      <el-icon v-else class="tc-chevron" :class="{ open: expanded }"><ArrowDown /></el-icon>
+      <span v-if="statusLabel" class="tc-status" :class="`tc-status--${statusTone}`">
+        {{ statusLabel }}
+      </span>
+      <el-icon v-if="!loading" class="tc-chevron" :class="{ open: expanded }"><ArrowDown /></el-icon>
     </div>
 
-    <div v-if="!loading" class="tc-body" :class="{ collapsed: !expanded }">
+    <div v-if="showBody" class="tc-body" :class="{ collapsed: !bodyExpanded }">
       <div class="tc-body-inner">
         <!-- Input -->
         <div class="tc-section">
@@ -49,19 +58,40 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { renderJsonCode } from '@/utils/useMarkdown'
 
-defineProps<{
+const props = defineProps<{
   toolType?: string
   toolName?: string
   toolArgs?: string
   toolOutput?: string
+  toolStatus?: 'running' | 'completed' | 'failed'
   expanded?: boolean
   loading?: boolean
 }>()
 
 defineEmits<{ toggle: [] }>()
+
+const bodyExpanded = computed(() => props.loading || props.expanded === true)
+const showBody = computed(
+  () => props.loading || props.expanded || props.toolOutput !== undefined,
+)
+const statusTone = computed(() => {
+  if (props.toolStatus === 'failed') return 'failed'
+  if (props.loading || props.toolStatus === 'running') return 'running'
+  if (props.toolStatus === 'completed' || props.toolOutput !== undefined) {
+    return 'completed'
+  }
+  return ''
+})
+const statusLabel = computed(() => {
+  if (statusTone.value === 'failed') return 'Failed'
+  if (statusTone.value === 'running') return 'Running'
+  if (statusTone.value === 'completed') return 'Completed'
+  return ''
+})
 
 function copy(raw: string | undefined) {
   if (!raw) return
@@ -93,6 +123,14 @@ function copy(raw: string | undefined) {
   animation: borderPulse 1.5s ease-in-out infinite;
 }
 
+.tc-block.tc-complete {
+  border-left-color: var(--success);
+}
+
+.tc-block.tc-failed {
+  border-left-color: var(--error);
+}
+
 .tc-header {
   display: flex;
   align-items: center;
@@ -118,7 +156,14 @@ function copy(raw: string | undefined) {
   font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
 }
 
-.tc-running { font-size: 11px; color: var(--text-4); font-style: italic; }
+.tc-status {
+  font-size: 11px;
+  font-style: italic;
+}
+
+.tc-status--running { color: var(--primary); }
+.tc-status--completed { color: var(--success); }
+.tc-status--failed { color: var(--error); }
 
 .tc-chevron {
   font-size: 12px !important;
