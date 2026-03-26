@@ -17,7 +17,7 @@ CLI execution with transcript visibility in chat.
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Rich Media and External CLI Chat Integration** - Add
+- [x] **Phase 1: Rich Media and External CLI Chat Integration** - Add (completed 2026-03-26)
   multimodal block rendering and chat-visible Claude Code, Codex, and Gemini
   CLI tooling to the existing HaiBot runtime and console.
 
@@ -51,7 +51,7 @@ Plans:
   structures across backend chat flows
 - [x] 01-02: Add dedicated Claude Code, Codex, and Gemini CLI tools with
   streaming runtime integration
-- [ ] 01-03: Render and replay rich media blocks and CLI transcript messages
+- [x] 01-03: Render and replay rich media blocks and CLI transcript messages
   in the existing frontend chat UI
 
 ## Progress
@@ -61,4 +61,4 @@ Phases execute in numeric order: 1
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Rich Media and External CLI Chat Integration | 2/3 | In Progress|  |
+| 1. Rich Media and External CLI Chat Integration | 3/3 | Complete    | 2026-03-26 |
