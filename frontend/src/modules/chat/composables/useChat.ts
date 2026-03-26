@@ -2,8 +2,104 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { streamQuery, stopChat } from '@/api/chats'
 import { stopGroupChat } from '@/api/group_chat_runtime'
+import { buildApiUrl } from '@/api'
 import type { DisplayMessage, DisplayBlock, ContentItem } from '@/types'
 import { uuidv4 } from '@/utils/uuid'
+
+function resolveContentUrl(rawUrl?: string): string | undefined {
+  if (!rawUrl) return undefined
+  if (
+    rawUrl.startsWith('http://') ||
+    rawUrl.startsWith('https://') ||
+    rawUrl.startsWith('data:') ||
+    rawUrl.startsWith('/api/')
+  ) {
+    return rawUrl
+  }
+
+  let normalized = rawUrl
+  if (normalized.startsWith('file://localhost/')) {
+    normalized = normalized.slice('file://localhost'.length)
+  } else if (normalized.startsWith('file://')) {
+    normalized = normalized.slice('file://'.length)
+  } else if (normalized.startsWith('file:')) {
+    normalized = normalized.slice('file:'.length)
+  }
+
+  normalized = normalized.replaceAll('\\', '/')
+
+  if (
+    normalized.length >= 4 &&
+    normalized.startsWith('//') &&
+    /[A-Za-z]/.test(normalized[2]) &&
+    normalized[3] === ':'
+  ) {
+    normalized = normalized.slice(2)
+  }
+
+  if (normalized.length >= 2 && /[A-Za-z]/.test(normalized[0]) && normalized[1] === ':') {
+    normalized = `/${normalized}`
+  }
+
+  if (!normalized.startsWith('/')) {
+    normalized = `/${normalized}`
+  }
+
+  return buildApiUrl(`/files/preview${normalized}`)
+}
+
+function createMediaBlock(item: ContentItem): DisplayBlock | null {
+  if (item.type === 'image') {
+    const mediaUrl = resolveContentUrl(item.image_url?.url)
+    if (!mediaUrl) return null
+    return {
+      id: uuidv4(),
+      kind: 'image',
+      mediaUrl,
+      mediaName: item.filename ?? 'image',
+    }
+  }
+
+  if (item.type === 'audio') {
+    const mediaUrl = resolveContentUrl(typeof item.data === 'string' ? item.data : undefined)
+    if (!mediaUrl) return null
+    return {
+      id: uuidv4(),
+      kind: 'audio',
+      mediaUrl,
+      mediaFormat: item.format,
+      mediaName: item.filename ?? 'audio',
+    }
+  }
+
+  if (item.type === 'video') {
+    const mediaUrl = resolveContentUrl(item.video_url)
+    if (!mediaUrl) return null
+    return {
+      id: uuidv4(),
+      kind: 'video',
+      mediaUrl,
+      mediaName: item.filename ?? 'video',
+    }
+  }
+
+  return null
+}
+
+function appendAssistantMessageContent(
+  blocks: DisplayBlock[],
+  content: ContentItem[],
+) {
+  for (const item of content) {
+    if (item.type === 'text' && item.text) {
+      blocks.push({ id: uuidv4(), kind: 'text', text: item.text })
+      continue
+    }
+
+    const mediaBlock = createMediaBlock(item)
+    if (mediaBlock) blocks.push(mediaBlock)
+  }
+}
 
 export function useChat() {
   const { t } = useI18n()
@@ -77,10 +173,11 @@ export function useChat() {
         const attachments: { name: string; url: string; type: string }[] = []
         for (const c of content) {
           if (c.type === 'image' && c.image_url?.url) {
-            attachments.push({ name: 'image', url: c.image_url.url, type: 'image/png' })
-          } else if (c.type === 'file' && (c as Record<string, unknown>).file_url) {
-            const fileUrl = (c as Record<string, unknown>).file_url as string
-            const filename = (c as Record<string, unknown>).filename as string || 'file'
+            const previewUrl = resolveContentUrl(c.image_url.url) || c.image_url.url
+            attachments.push({ name: 'image', url: previewUrl, type: 'image/png' })
+          } else if (c.type === 'file' && c.file_url) {
+            const fileUrl = resolveContentUrl(c.file_url) || c.file_url
+            const filename = c.filename || 'file'
             attachments.push({ name: filename, url: fileUrl, type: 'application/octet-stream' })
           }
         }
@@ -98,8 +195,7 @@ export function useChat() {
           const text = content.filter((c) => c.type === 'text').map((c) => c.text || '').join('')
           msg.blocks.push({ id: uuidv4(), kind: 'reasoning', text, expanded: false })
         } else if (type === 'message') {
-          const text = content.filter((c) => c.type === 'text').map((c) => c.text || '').join('')
-          if (text) msg.blocks.push({ id: uuidv4(), kind: 'text', text })
+          appendAssistantMessageContent(msg.blocks, content)
         } else if (
           type === 'plugin_call' || type === 'function_call' ||
           type === 'mcp_call' || type === 'component_call'
@@ -113,6 +209,7 @@ export function useChat() {
             toolType: type,
             toolName: (data.name as string) || type,
             toolArgs: data.arguments as string | undefined,
+            callId,
             expanded: false,
             loading: false,
           }
@@ -128,6 +225,7 @@ export function useChat() {
           const toolBlock = callBlockMap.get(callId)
           if (toolBlock) {
             toolBlock.toolOutput = (data.output as string) || ''
+            toolBlock.toolStatus = 'completed'
           }
         }
       }
@@ -193,11 +291,13 @@ export function useChat() {
 
     // Event routing maps (main / single-agent path)
     const msgBlockMap = new Map<string, DisplayBlock>()
+    const contentBlockMap = new Map<string, DisplayBlock>()
     const callBlockMap = new Map<string, DisplayBlock>()
     const outputMsgIds = new Set<string>()
 
     // Per-agent maps for group chat
     const agentMsgBlockMap = new Map<string, Map<string, DisplayBlock>>()
+    const agentContentBlockMap = new Map<string, Map<string, DisplayBlock>>()
     const agentCallBlockMap = new Map<string, Map<string, DisplayBlock>>()
     const agentOutputMsgIds = new Map<string, Set<string>>()
     const agentBubbleMap = new Map<string, DisplayMessage>()
@@ -218,6 +318,7 @@ export function useChat() {
       displayMessages.value.push(bubble)
       agentBubbleMap.set(aid, bubble)
       agentMsgBlockMap.set(aid, new Map())
+      agentContentBlockMap.set(aid, new Map())
       agentCallBlockMap.set(aid, new Map())
       agentOutputMsgIds.set(aid, new Set())
       return bubble
@@ -226,6 +327,39 @@ export function useChat() {
     function pushBlock(block: DisplayBlock): DisplayBlock {
       assistantMsg.blocks.push(block)
       return assistantMsg.blocks[assistantMsg.blocks.length - 1]
+    }
+
+    function ensureTextBlock(
+      blockMap: Map<string, DisplayBlock>,
+      bubble: DisplayMessage,
+      msgId: string,
+    ): DisplayBlock {
+      const key = `${msgId}:text`
+      let block = blockMap.get(key)
+      if (!block) {
+        block = { id: uuidv4(), kind: 'text', text: '' }
+        bubble.blocks.push(block)
+        blockMap.set(key, block)
+      }
+      return block
+    }
+
+    function ensureMediaBlock(
+      blockMap: Map<string, DisplayBlock>,
+      bubble: DisplayMessage,
+      msgId: string,
+      item: ContentItem,
+    ): DisplayBlock | null {
+      const key = `${msgId}:${item.type}:${item.index ?? 0}`
+      const existing = blockMap.get(key)
+      if (existing) return existing
+
+      const block = createMediaBlock(item)
+      if (!block) return null
+
+      bubble.blocks.push(block)
+      blockMap.set(key, block)
+      return block
     }
 
     function onEvent(event: Record<string, unknown>) {
@@ -252,6 +386,7 @@ export function useChat() {
       if (eventAgentId !== MAIN) {
         const bubble = getOrCreateAgentBubble(eventAgentId, agentName)
         const aMsgBlockMap = agentMsgBlockMap.get(eventAgentId)!
+        const aContentBlockMap = agentContentBlockMap.get(eventAgentId)!
         const aCallBlockMap = agentCallBlockMap.get(eventAgentId)!
         const aOutputMsgIds = agentOutputMsgIds.get(eventAgentId)!
 
@@ -268,10 +403,7 @@ export function useChat() {
           const msgId = event.id as string
 
           if (evStatus === 'in_progress') {
-            if (type === 'message') {
-              const block = pushAgentBlock({ id: uuidv4(), kind: 'text', text: '' })
-              aMsgBlockMap.set(msgId, block)
-            } else if (type === 'reasoning') {
+            if (type === 'reasoning') {
               const block = pushAgentBlock({ id: uuidv4(), kind: 'reasoning', text: '', expanded: true })
               aMsgBlockMap.set(msgId, block)
             } else if (
@@ -280,7 +412,8 @@ export function useChat() {
             ) {
               const block = pushAgentBlock({
                 id: uuidv4(), kind: 'tool_call', toolType: type,
-                toolName: '', toolArgs: undefined, expanded: false, loading: true,
+                toolName: '', toolArgs: undefined, callId: undefined,
+                toolStatus: 'running', expanded: false, loading: true,
               })
               aMsgBlockMap.set(msgId, block)
             } else if (
@@ -301,9 +434,14 @@ export function useChat() {
           const evContentStatus = event.status as string | undefined
 
           if (type === 'text' && event.delta === true) {
-            const block = aMsgBlockMap.get(msgId)
-            if (block && (block.kind === 'text' || block.kind === 'reasoning')) {
+            const block = aMsgBlockMap.get(msgId) || ensureTextBlock(aContentBlockMap, bubble, msgId)
+            if (block.kind === 'text' || block.kind === 'reasoning') {
               block.text = (block.text || '') + (event.text as string || '')
+              scrollToBottom()
+            }
+          } else if (type === 'image' || type === 'audio' || type === 'video') {
+            const mediaItem = event as unknown as ContentItem
+            if (ensureMediaBlock(aContentBlockMap, bubble, msgId, mediaItem)) {
               scrollToBottom()
             }
           } else if (type === 'data') {
@@ -316,7 +454,10 @@ export function useChat() {
                 if (toolBlock) {
                   const rawOutput = data.output as string | undefined
                   if (rawOutput !== undefined) toolBlock.toolOutput = rawOutput
-                  if (evContentStatus === 'completed') toolBlock.loading = false
+                  if (evContentStatus === 'completed') {
+                    toolBlock.loading = false
+                    toolBlock.toolStatus = 'completed'
+                  }
                 }
               }
             } else {
@@ -324,7 +465,10 @@ export function useChat() {
               if (block && block.kind === 'tool_call') {
                 if (data.name) block.toolName = data.name as string
                 if (data.arguments !== undefined) block.toolArgs = data.arguments as string
-                if (callId) aCallBlockMap.set(callId, block)
+                if (callId) {
+                  block.callId = callId
+                  aCallBlockMap.set(callId, block)
+                }
               }
             }
           }
@@ -348,10 +492,7 @@ export function useChat() {
         }
 
         if (evStatus === 'in_progress') {
-          if (type === 'message') {
-            const block = pushBlock({ id: uuidv4(), kind: 'text', text: '' })
-            msgBlockMap.set(msgId, block)
-          } else if (type === 'reasoning') {
+          if (type === 'reasoning') {
             const block = pushBlock({ id: uuidv4(), kind: 'reasoning', text: '', expanded: true })
             msgBlockMap.set(msgId, block)
           } else if (
@@ -360,7 +501,8 @@ export function useChat() {
           ) {
             const block = pushBlock({
               id: uuidv4(), kind: 'tool_call', toolType: type,
-              toolName: '', toolArgs: undefined, expanded: false, loading: true,
+              toolName: '', toolArgs: undefined, callId: undefined,
+              toolStatus: 'running', expanded: false, loading: true,
             })
             msgBlockMap.set(msgId, block)
           } else if (
@@ -381,9 +523,14 @@ export function useChat() {
         const evContentStatus = event.status as string | undefined
 
         if (type === 'text' && event.delta === true) {
-          const block = msgBlockMap.get(msgId)
-          if (block && (block.kind === 'text' || block.kind === 'reasoning')) {
+          const block = msgBlockMap.get(msgId) || ensureTextBlock(contentBlockMap, assistantMsg, msgId)
+          if (block.kind === 'text' || block.kind === 'reasoning') {
             block.text = (block.text || '') + (event.text as string || '')
+            scrollToBottom()
+          }
+        } else if (type === 'image' || type === 'audio' || type === 'video') {
+          const mediaItem = event as unknown as ContentItem
+          if (ensureMediaBlock(contentBlockMap, assistantMsg, msgId, mediaItem)) {
             scrollToBottom()
           }
         } else if (type === 'data') {
@@ -396,7 +543,10 @@ export function useChat() {
               if (toolBlock) {
                 const rawOutput = data.output as string | undefined
                 if (rawOutput !== undefined) toolBlock.toolOutput = rawOutput
-                if (evContentStatus === 'completed') toolBlock.loading = false
+                if (evContentStatus === 'completed') {
+                  toolBlock.loading = false
+                  toolBlock.toolStatus = 'completed'
+                }
               }
             }
           } else {
@@ -404,7 +554,10 @@ export function useChat() {
             if (block && block.kind === 'tool_call') {
               if (data.name) block.toolName = data.name as string
               if (data.arguments !== undefined) block.toolArgs = data.arguments as string
-              if (callId) callBlockMap.set(callId, block)
+              if (callId) {
+                block.callId = callId
+                callBlockMap.set(callId, block)
+              }
             }
           }
         }
