@@ -1,7 +1,7 @@
 <template>
   <div class="settings-layout">
     <!-- Left nav -->
-    <aside class="settings-nav">
+    <aside class="settings-nav" :class="{ 'mobile-open': isMobile && mobileNavOpen }">
       <div class="nav-header">
         <button class="back-btn" @click="router.push('/chat')">
           <el-icon><ArrowLeft /></el-icon>
@@ -40,6 +40,7 @@
                 :key="item.path"
                 :to="'/settings/' + item.path"
                 class="nav-item"
+                @click="handleNavItemClick"
               >
                 <el-icon><component :is="item.icon" /></el-icon>
                 <span>{{ item.label }}</span>
@@ -51,6 +52,32 @@
 
       <!-- Theme & Language at bottom -->
       <div class="nav-footer">
+        <div v-if="authStore.enabled" class="account-box">
+          <div class="account-label">
+            {{ authStore.isAuthenticated ? authStore.username : $t('auth.localBypass') }}
+          </div>
+          <div class="account-hint">
+            {{
+              authStore.isAuthenticated
+                ? $t('settings.security.accountDesc')
+                : $t('auth.localBypassDesc')
+            }}
+          </div>
+          <div class="account-actions">
+            <el-button size="small" text @click="openAccountSettings">
+              {{ authStore.isAuthenticated ? $t('settings.security.account') : $t('auth.signIn') }}
+            </el-button>
+            <el-button
+              v-if="authStore.isAuthenticated"
+              size="small"
+              text
+              type="danger"
+              @click="authStore.logout"
+            >
+              {{ $t('auth.logout') }}
+            </el-button>
+          </div>
+        </div>
         <div class="footer-row">
           <el-icon v-if="isDark"><Moon /></el-icon>
           <el-icon v-else><Sunny /></el-icon>
@@ -80,25 +107,47 @@
       </div>
     </aside>
 
+    <div
+      v-if="isMobile && mobileNavOpen"
+      class="nav-backdrop"
+      @click="closeMobileNav"
+    />
+
     <!-- Right content -->
     <main class="settings-content">
+      <div v-if="isMobile" class="settings-mobile-bar">
+        <button class="mobile-bar-btn" @click="toggleMobileNav">
+          <el-icon><Operation /></el-icon>
+        </button>
+        <div class="mobile-bar-title">{{ $t('settings.title') }}</div>
+        <div class="mobile-bar-actions">
+          <button class="mobile-bar-btn" @click="router.push('/chat')">
+            <el-icon><ArrowLeft /></el-icon>
+          </button>
+        </div>
+      </div>
       <router-view />
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { useMediaQuery } from '@vueuse/core'
 import { useTheme } from '@/utils/useTheme'
 import { setLocale } from '@/i18n'
 import { useSettingsStore } from '@/stores/settings'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const { t, locale } = useI18n()
 const { isDark, themeMode, setTheme } = useTheme()
 const settingsStore = useSettingsStore()
+const authStore = useAuthStore()
+const isMobile = useMediaQuery('(max-width: 960px)')
+const mobileNavOpen = ref(false)
 
 function changeLocale(val: string) {
   setLocale(val as 'zh-CN' | 'en')
@@ -120,6 +169,28 @@ function onAgentChange() {
   // Reload the current page by emitting a route replace to force re-fetch.
   const currentPath = router.currentRoute.value.fullPath
   router.replace('/settings').then(() => router.replace(currentPath))
+}
+
+function openAccountSettings() {
+  if (isMobile.value) mobileNavOpen.value = false
+  router.push({
+    path: '/settings/security',
+    query: { tab: 'account' },
+  })
+}
+
+function closeMobileNav() {
+  mobileNavOpen.value = false
+}
+
+function toggleMobileNav() {
+  mobileNavOpen.value = !mobileNavOpen.value
+}
+
+function handleNavItemClick() {
+  if (isMobile.value) {
+    mobileNavOpen.value = false
+  }
 }
 
 const navGroups = computed(() => [
@@ -166,26 +237,45 @@ onMounted(() => {
     settingsStore.loadAgents()
   }
 })
+
+watch(isMobile, (mobile) => {
+  if (!mobile) {
+    mobileNavOpen.value = false
+  }
+})
 </script>
 
 <style scoped>
 .settings-layout {
   display: flex;
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
-  background: var(--bg);
+  background:
+    radial-gradient(circle at top left, var(--surface-tint) 0, transparent 26%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-soft) 100%);
 }
 
 /* ── Nav ── */
 .settings-nav {
   width: 240px;
   flex-shrink: 0;
-  background: var(--bg-sidebar);
+  background:
+    linear-gradient(180deg, var(--bg-sidebar) 0%, var(--bg-card) 100%);
   border-right: 1px solid var(--border);
+  box-shadow: inset -1px 0 0 var(--surface-highlight);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  padding: 16px 12px;
+  padding: 18px 12px;
+  backdrop-filter: blur(18px);
+}
+
+.nav-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 109;
+  background: rgba(8, 10, 18, 0.42);
+  backdrop-filter: blur(4px);
 }
 
 .nav-header { margin-bottom: 12px; }
@@ -235,9 +325,9 @@ onMounted(() => {
   font-size: 13px;
   font-weight: 600;
   border-radius: var(--radius);
-  transition: background var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
-.nav-group-header:hover { background: var(--bg); }
+.nav-group-header:hover { background: var(--bg-soft); color: var(--text-1); }
 .nav-group-header .el-icon:first-child { font-size: 15px; }
 
 .nav-group-label { flex: 1; text-align: left; }
@@ -257,21 +347,38 @@ onMounted(() => {
 }
 
 .nav-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
   border-radius: var(--radius);
+  border: 1px solid transparent;
   color: var(--text-2);
   text-decoration: none;
   font-size: 13px;
-  transition: background var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
-.nav-item:hover { background: var(--bg); }
+.nav-item:hover {
+  background: var(--bg-card-elevated);
+  border-color: var(--border);
+  box-shadow: 0 10px 24px -18px var(--surface-shadow);
+  transform: translateX(2px);
+}
 .nav-item.router-link-active {
-  background: var(--primary-light);
+  background:
+    linear-gradient(180deg, var(--primary-light) 0%, rgba(0, 0, 0, 0) 100%),
+    var(--bg-card-elevated);
   color: var(--primary-text);
   font-weight: 500;
+  border-color: rgba(99, 102, 241, 0.18);
+  box-shadow:
+    inset 0 1px 0 var(--surface-highlight),
+    0 16px 28px -20px var(--surface-shadow);
 }
 .nav-item .el-icon { font-size: 15px; }
 
@@ -282,6 +389,36 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.account-box {
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(180deg, var(--surface-highlight) 0%, rgba(0, 0, 0, 0) 40px),
+    linear-gradient(180deg, var(--bg-card-elevated) 0%, var(--bg-card) 100%);
+  box-shadow: inset 0 1px 0 var(--surface-highlight);
+}
+
+.account-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.account-hint {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+
+.account-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
 }
 
 .footer-row {
@@ -297,6 +434,109 @@ onMounted(() => {
 .settings-content {
   flex: 1;
   overflow-y: auto;
-  padding: 28px;
+  position: relative;
+  padding: 32px;
+}
+
+.settings-mobile-bar {
+  display: none;
+}
+
+.settings-content::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 82% 0%, var(--surface-tint) 0, transparent 24%),
+    radial-gradient(circle at 12% 12%, var(--surface-highlight) 0, transparent 18%);
+  pointer-events: none;
+}
+
+.settings-content > * {
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 960px) {
+  .settings-layout {
+    position: relative;
+  }
+
+  .settings-nav {
+    position: fixed;
+    z-index: 120;
+    inset: 0 auto 0 0;
+    width: min(84vw, 320px);
+    height: 100dvh;
+    padding-top: calc(18px + var(--safe-top));
+    padding-bottom: calc(18px + var(--safe-bottom));
+    transform: translateX(-100%);
+    transition: transform var(--transition-slow);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .settings-nav.mobile-open {
+    transform: translateX(0);
+  }
+
+  .settings-content {
+    padding:
+      calc(12px + var(--safe-top))
+      calc(14px + var(--safe-right))
+      calc(22px + var(--safe-bottom))
+      calc(14px + var(--safe-left));
+  }
+
+  .settings-mobile-bar {
+    position: sticky;
+    top: calc(-12px - var(--safe-top));
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0 -14px 14px;
+    padding:
+      calc(10px + var(--safe-top))
+      calc(14px + var(--safe-right))
+      10px
+      calc(14px + var(--safe-left));
+    background:
+      linear-gradient(180deg, var(--surface-highlight) 0%, rgba(0, 0, 0, 0) 52px),
+      linear-gradient(180deg, var(--bg-card-elevated) 0%, var(--bg-card) 100%);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(18px);
+  }
+
+  .mobile-bar-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-1);
+    letter-spacing: -0.02em;
+  }
+
+  .mobile-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mobile-bar-btn {
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg-card);
+    color: var(--text-2);
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+  }
+
+  .settings-nav:not(.mobile-open) {
+    pointer-events: none;
+  }
 }
 </style>

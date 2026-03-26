@@ -20,14 +20,36 @@ export interface HubSkillSpec {
 }
 
 export interface HubInstallRequest {
-  slug: string
+  bundle_url: string
+  version?: string
   enable?: boolean
+  overwrite?: boolean
+}
+
+export interface UploadSkillResult {
+  imported: string[]
+  count: number
+  enabled: boolean
+}
+
+export interface HubInstallResult {
+  installed: boolean
+  name: string
+  enabled: boolean
+  source_url: string
 }
 
 export interface HubInstallTask {
   task_id: string
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
-  message?: string
+  bundle_url: string
+  version?: string
+  enable: boolean
+  overwrite: boolean
+  status: 'pending' | 'importing' | 'completed' | 'failed' | 'cancelled'
+  error?: string | null
+  result?: HubInstallResult | null
+  created_at: number
+  updated_at: number
 }
 
 export interface AIOptimizeSkillRequest {

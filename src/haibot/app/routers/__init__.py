@@ -23,6 +23,7 @@ from .group_chat_runtime import router as group_chat_runtime_router
 from .token_usage import router as token_usage_router
 from .auth import router as auth_router
 from .messages import router as messages_router
+from .files import router as files_router
 
 router = APIRouter()
 
@@ -47,6 +48,7 @@ router.include_router(group_chat_runtime_router)
 router.include_router(group_chat_stream_router)
 router.include_router(token_usage_router)
 router.include_router(auth_router)
+router.include_router(files_router)
 
 
 def create_agent_scoped_router() -> APIRouter:

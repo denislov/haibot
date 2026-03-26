@@ -1,5 +1,6 @@
 // Barrel file — re-export all domain types
 export * from './agent'
+export * from './auth'
 export * from './chat'
 export * from './channel'
 export * from './cron'

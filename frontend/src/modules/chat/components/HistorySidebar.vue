@@ -290,4 +290,28 @@ const groups = computed((): Group[] => {
 :deep(.danger-item) {
   color: var(--error) !important;
 }
+
+@media (max-width: 960px) {
+  .history-sidebar {
+    position: fixed;
+    z-index: 120;
+    inset: 0 0 0 auto;
+    width: min(84vw, 340px);
+    max-width: 340px;
+    height: 100dvh;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+    box-shadow: var(--shadow-lg);
+    transition:
+      transform var(--transition-slow),
+      opacity var(--transition-slow);
+  }
+
+  .history-sidebar.collapsed {
+    width: min(84vw, 340px);
+    transform: translateX(calc(100% + 16px));
+    opacity: 0;
+    border-left: 1px solid var(--border);
+  }
+}
 </style>

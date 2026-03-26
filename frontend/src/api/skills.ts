@@ -1,5 +1,13 @@
-import api from './index'
-import type { SkillSpec, HubSkillSpec, HubInstallTask } from '@/types'
+import api, { buildApiUrl, createAuthHeaders } from './index'
+import { notifyUnauthorized } from '@/utils/authSession'
+import type {
+  SkillSpec,
+  HubSkillSpec,
+  HubInstallRequest,
+  HubInstallResult,
+  HubInstallTask,
+  UploadSkillResult,
+} from '@/types'
 
 // ── Core CRUD ─────────────────────────────────────────────────────────────
 export const listSkills = () =>
@@ -40,9 +48,10 @@ export const uploadSkillZip = (file: File, options?: { enable?: boolean; overwri
   const params: Record<string, unknown> = {}
   if (options?.enable) params.enable = true
   if (options?.overwrite) params.overwrite = true
-  return api.post('/skills/upload', form, {
+  return api.post<UploadSkillResult>('/skills/upload', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
     params,
+    timeout: 120000,
   }).then((r) => r.data)
 }
 
@@ -50,10 +59,12 @@ export const uploadSkillZip = (file: File, options?: { enable?: boolean; overwri
 export const searchHub = (q?: string, limit?: number) =>
   api.get<HubSkillSpec[]>('/skills/hub/search', { params: { q, limit } }).then((r) => r.data)
 
-export const installFromHub = (data: { slug: string; enable?: boolean }) =>
-  api.post('/skills/hub/install', data).then((r) => r.data)
+export const installFromHub = (data: HubInstallRequest) =>
+  api.post<HubInstallResult>('/skills/hub/install', data, {
+    timeout: 120000,
+  }).then((r) => r.data)
 
-export const startInstallFromHub = (data: { slug: string; enable?: boolean }) =>
+export const startInstallFromHub = (data: HubInstallRequest) =>
   api.post<HubInstallTask>('/skills/hub/install/start', data).then((r) => r.data)
 
 export const getHubInstallStatus = (taskId: string) =>
@@ -63,8 +74,6 @@ export const cancelHubInstall = (taskId: string) =>
   api.post(`/skills/hub/install/cancel/${taskId}`).then((r) => r.data)
 
 // ── AI Optimize (streaming) ───────────────────────────────────────────────
-declare const BASE_URL: string
-
 export async function aiOptimizeSkillStream(
   content: string,
   language: string,
@@ -73,18 +82,22 @@ export async function aiOptimizeSkillStream(
   onError: (e: Error) => void,
   signal?: AbortSignal,
 ) {
-  const base = (typeof BASE_URL !== 'undefined' && BASE_URL) || ''
-  const url = `${base}/api/skills/ai/optimize/stream`
+  const url = buildApiUrl('/skills/ai/optimize/stream')
 
   try {
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: createAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ content, language }),
       signal,
     })
 
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    if (!response.ok) {
+      if (response.status === 401) {
+        notifyUnauthorized('Invalid or expired token')
+      }
+      throw new Error(`HTTP ${response.status}`)
+    }
 
     const reader = response.body!.getReader()
     const decoder = new TextDecoder()

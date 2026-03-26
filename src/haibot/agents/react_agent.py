@@ -54,7 +54,7 @@ from .utils import process_file_and_media_blocks_in_message
 from ..constant import (
     WORKING_DIR,
 )
-from ..agents.memory import MemoryManager
+from ..agents.memory import BaseMemoryManager
 
 if TYPE_CHECKING:
     from ..config.config import AgentProfileConfig
@@ -91,8 +91,8 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
         env_context: Optional[str] = None,
         enable_memory_manager: bool = True,
         mcp_clients: Optional[List[Any]] = None,
-        memory_manager: "MemoryManager | None" = None,
-        request_context: Optional[dict[str, Any]] = None,
+        memory_manager: "BaseMemoryManager | None" = None,
+        request_context: Optional[dict[str, str]] = None,
         namesake_strategy: NamesakeStrategy = "skip",
         workspace_dir: Path | None = None,
     ):
@@ -618,7 +618,7 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
     def _setup_memory_manager(
         self,
         enable_memory_manager: bool,
-        memory_manager: MemoryManager | None,
+        memory_manager: BaseMemoryManager | None,
         namesake_strategy: NamesakeStrategy,
     ) -> None:
         """Setup memory manager and register memory search tool if enabled.
@@ -706,6 +706,13 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
         message stored in self.memory.content (if one exists).
         """
         self._sys_prompt = self._build_sys_prompt()
+
+        if self.memory is None:
+            logger.warning(
+                "rebuild_sys_prompt: self.memory is None, "
+                "skipping in-memory system prompt update.",
+            )
+            return
 
         for msg, _marks in self.memory.content:
             if msg.role == "system":
@@ -1084,7 +1091,7 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
         round of calls has ended.
         """
         if isinstance(msg.content, str):
-            msg.content += CoPawAgent._ROUND_END_NOTICE
+            msg.content += HaiBotAgent._ROUND_END_NOTICE
             return msg
 
         filtered = [
@@ -1102,7 +1109,7 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
                 n_removed,
             )
 
-        filtered.append({"type": "text", "text": CoPawAgent._ROUND_END_NOTICE})
+        filtered.append({"type": "text", "text": HaiBotAgent._ROUND_END_NOTICE})
         msg.content = filtered
         return msg
 
@@ -1190,6 +1197,7 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
 
         return total_stripped
 
+    # pylint: disable=protected-access
     async def reply(
         self,
         msg: Msg | list[Msg] | None = None,
@@ -1227,6 +1235,38 @@ class HaiBotAgent(ToolGuardMixin, ReActAgent):
 
         # Normal message processing
         logger.info("CoPawAgent.reply: max_iters=%s", self.max_iters)
+
+        if hasattr(self.memory, "_long_term_memory"):
+            running = self._agent_config.running
+            ms = running.memory_summary
+            if (
+                ms.force_memory_search
+                and self.memory_manager is not None
+                and query
+            ):
+                try:
+                    result = await asyncio.wait_for(
+                        self.memory_manager.memory_search(
+                            query=query[:100],
+                            max_results=ms.force_max_results,
+                            min_score=ms.force_min_score,
+                        ),
+                        timeout=1,
+                    )
+                    self.memory._long_term_memory = "\n".join(
+                        block.text
+                        for block in (result.content or [])
+                        if hasattr(block, "text")
+                    )
+                except BaseException as e:
+                    logger.warning(
+                        "force_memory_search failed or timed out,"
+                        f" skipping e={e}",
+                    )
+                    self.memory._long_term_memory = ""
+            else:
+                self.memory._long_term_memory = ""
+
         return await super().reply(msg=msg, structured_model=structured_model)
 
     async def interrupt(self, msg: Msg | list[Msg] | None = None) -> None:

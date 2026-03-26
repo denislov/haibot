@@ -5,6 +5,105 @@
       <p class="section-desc">{{ $t('settings.security.desc') }}</p>
 
       <el-tabs v-model="activeTab" class="security-tabs">
+        <el-tab-pane
+          v-if="authStore.enabled"
+          :label="$t('settings.security.account')"
+          name="account"
+        >
+          <div class="tab-content">
+            <p class="tab-desc">{{ $t('settings.security.accountDesc') }}</p>
+
+            <div class="card">
+              <template v-if="authStore.isAuthenticated">
+                <div class="form-row">
+                  <label>{{ $t('settings.security.currentUser') }}</label>
+                  <div class="readonly-value">{{ authStore.username }}</div>
+                </div>
+
+                <div class="form-row mt-4">
+                  <label>{{ $t('settings.security.currentPassword') }}</label>
+                  <el-input
+                    v-model="profileForm.currentPassword"
+                    type="password"
+                    show-password
+                  />
+                </div>
+
+                <div class="form-row mt-4">
+                  <label>{{ $t('settings.security.newUsername') }}</label>
+                  <el-input v-model="profileForm.newUsername" />
+                </div>
+
+                <div class="form-row mt-4">
+                  <label>{{ $t('settings.security.newPassword') }}</label>
+                  <el-input
+                    v-model="profileForm.newPassword"
+                    type="password"
+                    show-password
+                  />
+                </div>
+
+                <div class="form-row mt-4">
+                  <label>{{ $t('settings.security.confirmNewPassword') }}</label>
+                  <el-input
+                    v-model="profileForm.confirmNewPassword"
+                    type="password"
+                    show-password
+                  />
+                </div>
+
+                <p class="form-hint mt-4">
+                  {{ $t('settings.security.profileHint') }}
+                </p>
+
+                <div class="account-actions mt-4">
+                  <el-button type="danger" plain @click="handleLogout">
+                    {{ $t('auth.logout') }}
+                  </el-button>
+                  <el-button
+                    type="primary"
+                    :loading="savingProfile"
+                    @click="saveProfile"
+                  >
+                    {{ $t('settings.security.saveProfile') }}
+                  </el-button>
+                </div>
+              </template>
+
+              <template v-else>
+                <div class="account-note">
+                  {{ $t('settings.security.localBypassDesc') }}
+                </div>
+
+                <div class="form-row mt-4">
+                  <label>{{ $t('auth.username') }}</label>
+                  <el-input v-model="accountLoginForm.username" />
+                </div>
+
+                <div class="form-row mt-4">
+                  <label>{{ $t('auth.password') }}</label>
+                  <el-input
+                    v-model="accountLoginForm.password"
+                    type="password"
+                    show-password
+                    @keyup.enter="signInForAccount"
+                  />
+                </div>
+
+                <div class="account-actions mt-4">
+                  <el-button
+                    type="primary"
+                    :loading="signingInForAccount"
+                    @click="signInForAccount"
+                  >
+                    {{ $t('settings.security.signInToManage') }}
+                  </el-button>
+                </div>
+              </template>
+            </div>
+          </div>
+        </el-tab-pane>
+
         <el-tab-pane :label="$t('settings.security.toolGuard')" name="toolGuard">
           <div class="tab-content" v-loading="loadingToolGuard">
             <p class="tab-desc">{{ $t('settings.security.toolGuardDesc') }}</p>
@@ -205,9 +304,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { reactive, ref, onMounted, watch } from 'vue'
 import { InfoFilled, Plus, View } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   getToolGuardConfig,
   updateToolGuardConfig,
@@ -219,8 +320,12 @@ import {
   addSkillScannerWhitelist,
   removeSkillScannerWhitelist
 } from '@/api/config'
+import { useAuthStore } from '@/stores/auth'
 import type { ToolGuardConfig, ToolGuardRuleConfig, SkillScannerConfig, SkillScannerBlockedHistoryEntry } from '@/types'
 
+const route = useRoute()
+const { t } = useI18n()
+const authStore = useAuthStore()
 const activeTab = ref('toolGuard')
 const innerScannerTab = ref('alerts')
 
@@ -246,6 +351,24 @@ const skillScannerForm = ref<SkillScannerConfig>({
 })
 const skillBlockedHistory = ref<SkillScannerBlockedHistoryEntry[]>([])
 const newWhitelistSkill = ref('')
+const signingInForAccount = ref(false)
+const savingProfile = ref(false)
+const accountLoginForm = reactive({
+  username: '',
+  password: '',
+})
+const profileForm = reactive({
+  currentPassword: '',
+  newUsername: '',
+  newPassword: '',
+  confirmNewPassword: '',
+})
+
+function syncTabFromRoute() {
+  if (route.query.tab === 'account' && authStore.enabled) {
+    activeTab.value = 'account'
+  }
+}
 
 function getSeverityTag(severity: string) {
   switch (severity.toLowerCase()) {
@@ -350,10 +473,68 @@ async function removeWhitelist(skillName: string) {
   }
 }
 
+async function signInForAccount() {
+  if (!accountLoginForm.username.trim() || !accountLoginForm.password) return
+  signingInForAccount.value = true
+  try {
+    await authStore.login(
+      accountLoginForm.username,
+      accountLoginForm.password,
+    )
+    accountLoginForm.password = ''
+    ElMessage.success(t('auth.signIn'))
+  } catch (e: any) {
+    ElMessage.error(e.message)
+  } finally {
+    signingInForAccount.value = false
+  }
+}
+
+async function saveProfile() {
+  if (!profileForm.currentPassword) return
+  if (
+    profileForm.newPassword &&
+    profileForm.newPassword !== profileForm.confirmNewPassword
+  ) {
+    ElMessage.error(t('auth.invalidConfirm'))
+    return
+  }
+
+  savingProfile.value = true
+  try {
+    await authStore.updateProfile({
+      currentPassword: profileForm.currentPassword,
+      newUsername: profileForm.newUsername,
+      newPassword: profileForm.newPassword,
+    })
+    profileForm.currentPassword = ''
+    profileForm.newUsername = ''
+    profileForm.newPassword = ''
+    profileForm.confirmNewPassword = ''
+    ElMessage.success(t('settings.security.profileUpdated'))
+  } catch (e: any) {
+    ElMessage.error(e.message)
+  } finally {
+    savingProfile.value = false
+  }
+}
+
+async function handleLogout() {
+  await authStore.logout()
+}
+
 onMounted(() => {
+  syncTabFromRoute()
   loadToolGuard()
   loadSkillScanner()
 })
+
+watch(
+  () => route.query.tab,
+  () => {
+    syncTabFromRoute()
+  },
+)
 </script>
 
 <style scoped>
@@ -426,6 +607,30 @@ onMounted(() => {
 
 .text-xs { font-size: 12px; }
 .text-info { color: var(--info); }
+.readonly-value {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-1);
+}
+.account-note {
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--primary-light);
+  color: var(--text-2);
+  line-height: 1.6;
+}
+.account-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.form-hint {
+  font-size: 12px;
+  color: var(--text-4);
+}
 
 /* Preview Dialog */
 .preview-content {
@@ -451,15 +656,15 @@ onMounted(() => {
   font-weight: 600;
 }
 .action-tag {
-  color: #d97706;
-  background-color: #fef3c7;
-  border-color: #fde68a;
+  color: var(--warning);
+  background-color: var(--warning-light);
+  border-color: var(--warning-border);
   font-weight: 500;
 }
 [data-theme="dark"] .action-tag {
-  color: #fcd34d;
-  background-color: rgba(217, 119, 6, 0.2);
-  border-color: rgba(217, 119, 6, 0.3);
+  color: var(--warning);
+  background-color: var(--warning-light);
+  border-color: var(--warning-border);
 }
 
 .preview-code-section {

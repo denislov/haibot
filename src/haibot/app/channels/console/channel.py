@@ -213,11 +213,7 @@ class ConsoleChannel(BaseChannel):
                     local_path = file_url_to_local_path(str(url))
                     return ImageContent(
                         type=ContentType.IMAGE,
-                        image_url=(
-                            local_path
-                            if local_path and Path(local_path).is_absolute()
-                            else str(self._media_dir / url)
-                        ),
+                        image_url=url,
                     )
             elif content_type == ContentType.VIDEO:
                 url = getattr(part, "video_url", None)
@@ -225,11 +221,7 @@ class ConsoleChannel(BaseChannel):
                     local_path = file_url_to_local_path(str(url))
                     return VideoContent(
                         type=ContentType.VIDEO,
-                        video_url=(
-                            local_path
-                            if local_path and Path(local_path).is_absolute()
-                            else str(self._media_dir / url)
-                        ),
+                        video_url=url,
                     )
             elif content_type == ContentType.AUDIO:
                 url = getattr(part, "data", None)
@@ -237,11 +229,7 @@ class ConsoleChannel(BaseChannel):
                     local_path = file_url_to_local_path(str(url))
                     return AudioContent(
                         type=ContentType.AUDIO,
-                        data=(
-                            local_path
-                            if local_path and Path(local_path).is_absolute()
-                            else str(self._media_dir / url)
-                        ),
+                        data=url,
                     )
             elif content_type == ContentType.FILE:
                 url = getattr(part, "file_url", None)
@@ -250,11 +238,7 @@ class ConsoleChannel(BaseChannel):
                     return FileContent(
                         type=ContentType.FILE,
                         filename=getattr(part, "filename", None) or url,
-                        file_url=(
-                            local_path
-                            if local_path and Path(local_path).is_absolute()
-                            else str(self._media_dir / url)
-                        ),
+                        file_url=url,
                     )
             elif content_type == ContentType.TEXT:
                 return TextContent(type=ContentType.TEXT, text=part.text)

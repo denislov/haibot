@@ -157,20 +157,53 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.workspace-layout { display: flex; height: calc(100vh - 56px); margin: -28px; }
-.file-panel { width: 280px; flex-shrink: 0; background: var(--bg-sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-.panel-header { padding: 16px; border-bottom: 1px solid var(--border); }
+.workspace-layout {
+  display: flex;
+  height: calc(100dvh - 64px);
+  margin: -32px;
+  background:
+    radial-gradient(circle at top right, var(--surface-tint) 0, transparent 28%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-soft) 100%);
+}
+.file-panel {
+  width: 292px;
+  flex-shrink: 0;
+  background:
+    linear-gradient(180deg, var(--bg-sidebar) 0%, var(--bg-card) 100%);
+  border-right: 1px solid var(--border);
+  box-shadow: inset -1px 0 0 var(--surface-highlight);
+  display: flex;
+  flex-direction: column;
+}
+.panel-header { padding: 18px 18px 16px; border-bottom: 1px solid var(--border); }
 .panel-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .panel-title { font-size: 14px; font-weight: 600; color: var(--text-1); }
-.refresh-btn { display: flex; align-items: center; gap: 4px; border: none; background: none; cursor: pointer; font-size: 12px; color: var(--text-3); padding: 4px 8px; border-radius: var(--radius-sm); }
-.refresh-btn:hover { background: var(--bg); }
+.refresh-btn {
+  display: flex; align-items: center; gap: 4px; border: none;
+  background: var(--bg-soft); cursor: pointer; font-size: 12px;
+  color: var(--text-3); padding: 6px 10px; border-radius: 999px;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.refresh-btn:hover { background: var(--bg-card-elevated); color: var(--text-1); }
 .refresh-btn.spinning .el-icon { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .panel-desc { font-size: 12px; color: var(--text-4); }
-.file-list { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
-.file-card { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); cursor: pointer; transition: all var(--transition-fast); gap: 12px; }
-.file-card:hover { border-color: var(--primary); }
-.file-card.active { border-color: var(--primary); background: var(--primary-light); }
+.file-list { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.file-card {
+  display: flex; align-items: center; justify-content: space-between; padding: 13px 14px;
+  background:
+    linear-gradient(180deg, var(--surface-highlight) 0%, rgba(0, 0, 0, 0) 42px),
+    linear-gradient(180deg, var(--bg-card-elevated) 0%, var(--bg-card) 100%);
+  border: 1px solid var(--border); border-radius: var(--radius-lg); cursor: pointer;
+  transition: all var(--transition-fast); gap: 12px;
+}
+.file-card:hover { border-color: rgba(99, 102, 241, 0.32); }
+.file-card.active {
+  border-color: rgba(99, 102, 241, 0.36);
+  background:
+    linear-gradient(180deg, rgba(99, 102, 241, 0.12) 0%, rgba(0, 0, 0, 0) 48px),
+    linear-gradient(180deg, var(--bg-card-elevated) 0%, var(--bg-card) 100%);
+}
 
 .drag-handle { cursor: grab; display: flex; align-items: center; color: var(--text-4); font-size: 16px; padding: 4px; opacity: 0.5; transition: opacity var(--transition-fast); }
 .file-card:hover .drag-handle { opacity: 1; }
@@ -184,9 +217,46 @@ onMounted(async () => {
 
 .file-actions { display: flex; align-items: center; }
 
-.editor-panel { flex: 1; display: flex; flex-direction: column; background: var(--bg); }
-.editor-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text-4); }
-.editor-topbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--bg-card); border-bottom: 1px solid var(--border); }
-.editor-filename { font-size: 13px; font-weight: 500; color: var(--text-2); }
-.editor-textarea { flex: 1; width: 100%; padding: 16px; border: none; outline: none; resize: none; font-size: 13px; font-family: 'Fira Code', Consolas, monospace; line-height: 1.7; color: var(--text-1); background: var(--bg); }
+.editor-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(circle at top left, var(--surface-tint) 0, transparent 26%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-soft) 100%);
+}
+.editor-empty {
+  flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text-4);
+}
+.editor-empty span {
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--border);
+  background: var(--bg-card);
+  box-shadow: inset 0 1px 0 var(--surface-highlight);
+}
+.editor-topbar {
+  display: flex; align-items: center; justify-content: space-between; padding: 14px 18px;
+  background:
+    linear-gradient(180deg, var(--surface-highlight) 0%, rgba(0, 0, 0, 0) 46px),
+    linear-gradient(180deg, var(--bg-card-elevated) 0%, var(--bg-card) 100%);
+  border-bottom: 1px solid var(--border);
+}
+.editor-filename { font-size: 13px; font-weight: 600; color: var(--text-2); letter-spacing: 0.01em; }
+.editor-textarea {
+  flex: 1; width: 100%; padding: 22px 24px; border: none; outline: none; resize: none;
+  font-size: 13px; font-family: 'Fira Code', Consolas, monospace; line-height: 1.75;
+  color: var(--text-1); background: transparent;
+}
+
+@media (max-width: 960px) {
+  .workspace-layout {
+    margin: -22px -18px -28px;
+    height: auto;
+    min-height: calc(100dvh - 64px);
+    flex-direction: column;
+  }
+  .file-panel { width: 100%; }
+  .editor-panel { min-height: 52vh; }
+}
 </style>

@@ -135,7 +135,7 @@ defineExpose({ focus: () => textareaEl.value?.focus() })
 <style scoped>
 .input-area {
   flex-shrink: 0;
-  padding: 0 16px 12px;
+  padding: 0 16px calc(12px + var(--safe-bottom));
   background: transparent;
 }
 
@@ -327,5 +327,29 @@ defineExpose({ focus: () => textareaEl.value?.focus() })
   font-size: 11px;
   color: var(--text-4);
   margin-top: 6px;
+}
+
+@media (max-width: 960px) {
+  .input-area {
+    padding: 0 10px calc(10px + var(--safe-bottom));
+  }
+
+  .input-box-wrap {
+    border-radius: 18px;
+  }
+
+  .chat-textarea {
+    min-height: 42px;
+    padding: 10px 14px 4px;
+    font-size: 15px;
+  }
+
+  .attachment-bar {
+    padding: 8px 12px;
+  }
+
+  .chat-tagline {
+    display: none;
+  }
 }
 </style>

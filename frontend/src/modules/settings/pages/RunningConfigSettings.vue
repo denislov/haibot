@@ -165,27 +165,39 @@ onMounted(() => {
 .section-desc { font-size: 13px; color: var(--text-3); margin-bottom: 16px; }
 
 .card {
-  background: var(--bg-card);
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, var(--surface-highlight) 0%, rgba(0, 0, 0, 0) 56px),
+    linear-gradient(180deg, var(--bg-card-elevated) 0%, var(--bg-card) 100%);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   padding: 24px;
   display: flex;
   flex-direction: column;
+  box-shadow:
+    inset 0 1px 0 var(--surface-highlight),
+    0 18px 34px -26px var(--surface-shadow);
 }
 .card-title {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-1);
   margin-bottom: 20px;
+  letter-spacing: 0.01em;
 }
 
 .form-row {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--bg);
+  border: 1px solid var(--border);
 }
 .slider-row {
-  padding: 0 10px;
+  padding: 14px 16px 12px;
 }
 .form-row label {
   font-size: 13px;
@@ -210,5 +222,15 @@ onMounted(() => {
   justify-content: flex-end;
   gap: 12px;
   margin-top: 24px;
+}
+
+@media (max-width: 768px) {
+  .card {
+    padding: 18px;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+  }
 }
 </style>

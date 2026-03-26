@@ -468,6 +468,8 @@ pip install -e .
 - **開発**（テスト、フォーマット）: `pip install -e ".[dev,full]"`
 - **その後**: `haibot init --defaults` を実行し、次に `haibot app` を実行。
 
+> **アップデート時の注意:** `git pull` 後に新しいメジャーバージョンにアップデートする場合は、フロントエンドの再ビルド、パッケージの再インストール（`pip install -e .`）、`copaw app` の再起動、およびブラウザキャッシュの削除（`Ctrl+Shift+R` または macOSでは `Cmd+Shift+R`）も行ってください。
+
 ---
 
 ## なぜHaiBot？

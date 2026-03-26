@@ -7,16 +7,22 @@
       :selected-id="selectedContact?.id ?? null"
       :selected-type="selectedContact?.type ?? null"
       :collapsed="leftCollapsed"
-      @toggle="leftCollapsed = !leftCollapsed"
+      @toggle="toggleLeftSidebar"
       @select-agent="handleSelectAgent"
       @select-group="handleSelectGroup"
       @open-settings="router.push('/settings')"
     />
 
     <!-- Left expand button (shown when left sidebar collapsed) -->
-    <button v-if="leftCollapsed" class="expand-btn expand-btn-left" @click="leftCollapsed = false">
+    <button v-if="leftCollapsed" class="expand-btn expand-btn-left" @click="openLeftSidebar">
       <el-icon><Expand /></el-icon>
     </button>
+
+    <div
+      v-if="showSidebarBackdrop"
+      class="sidebar-backdrop"
+      @click="closeMobileDrawers"
+    />
 
     <!-- Chat area -->
     <div class="chat-main">
@@ -89,14 +95,14 @@
       :chats="contactChats"
       :active-chat-id="chatStore.activeChat?.id ?? null"
       :collapsed="rightCollapsed"
-      @toggle="rightCollapsed = !rightCollapsed"
+      @toggle="toggleRightSidebar"
       @select-chat="selectChat"
       @chat-action="handleChatAction"
       @new-chat="handleNewChat"
     />
 
     <!-- Right expand button (shown when right sidebar collapsed AND a contact is selected) -->
-    <button v-if="rightCollapsed && selectedContact" class="expand-btn expand-btn-right" @click="rightCollapsed = false">
+    <button v-if="rightCollapsed && selectedContact" class="expand-btn expand-btn-right" @click="openRightSidebar">
       <el-icon><Expand /></el-icon>
     </button>
 
@@ -112,11 +118,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
-import { useStorage } from '@vueuse/core'
+import { useMediaQuery, useStorage } from '@vueuse/core'
 import { useChatStore } from '@/stores/chat'
 import { useChat } from './composables/useChat'
 import { uploadFile, uploadGroupFile } from '@/api/console'
@@ -136,8 +142,31 @@ const chatStore = useChatStore()
 const chat = useChat()
 const chatWindowRef = ref<InstanceType<typeof ChatWindow> | null>(null)
 
-const leftCollapsed = useStorage('haibot-left-sidebar', false)
-const rightCollapsed = useStorage('haibot-history-sidebar', false)
+const isMobile = useMediaQuery('(max-width: 960px)')
+const desktopLeftCollapsed = useStorage('haibot-left-sidebar', false)
+const desktopRightCollapsed = useStorage('haibot-history-sidebar', false)
+const mobileLeftCollapsed = ref(true)
+const mobileRightCollapsed = ref(true)
+
+const leftCollapsed = computed({
+  get: () => (
+    isMobile.value ? mobileLeftCollapsed.value : desktopLeftCollapsed.value
+  ),
+  set: (value: boolean) => {
+    if (isMobile.value) mobileLeftCollapsed.value = value
+    else desktopLeftCollapsed.value = value
+  },
+})
+
+const rightCollapsed = computed({
+  get: () => (
+    isMobile.value ? mobileRightCollapsed.value : desktopRightCollapsed.value
+  ),
+  set: (value: boolean) => {
+    if (isMobile.value) mobileRightCollapsed.value = value
+    else desktopRightCollapsed.value = value
+  },
+})
 
 const selectedContact = ref<{ type: 'agent' | 'group'; id: string } | null>(null)
 
@@ -164,6 +193,42 @@ const fallbackAgentId = computed(() => agentsList.value[0]?.id ?? 'default')
 const currentGroupId = computed(() =>
   selectedContact.value?.type === 'group' ? selectedContact.value.id : null
 )
+
+const showSidebarBackdrop = computed(
+  () => isMobile.value && (!leftCollapsed.value || !rightCollapsed.value),
+)
+
+function closeMobileDrawers() {
+  if (!isMobile.value) return
+  leftCollapsed.value = true
+  rightCollapsed.value = true
+}
+
+function openLeftSidebar() {
+  if (isMobile.value) rightCollapsed.value = true
+  leftCollapsed.value = false
+}
+
+function openRightSidebar() {
+  if (isMobile.value) leftCollapsed.value = true
+  rightCollapsed.value = false
+}
+
+function toggleLeftSidebar() {
+  if (isMobile.value && leftCollapsed.value) {
+    openLeftSidebar()
+    return
+  }
+  leftCollapsed.value = !leftCollapsed.value
+}
+
+function toggleRightSidebar() {
+  if (isMobile.value && rightCollapsed.value) {
+    openRightSidebar()
+    return
+  }
+  rightCollapsed.value = !rightCollapsed.value
+}
 
 // Chats filtered to the selected contact
 const contactChats = computed(() => {
@@ -281,6 +346,7 @@ async function handleSelectAgent(agent: AgentInfo) {
   chat.setChatId(temp.id)
   chat.clearMessages()
   chat.setWelcomeMessage(t('chat.emptyState'))
+  closeMobileDrawers()
 }
 
 // ── Select Group Chat ─────────────────────────────────────────────────────
@@ -315,6 +381,7 @@ async function handleSelectGroup(gc: GroupChatConfig) {
   chat.setChatId(temp.id)
   chat.clearMessages()
   chat.setWelcomeMessage(t('chat.emptyState'))
+  closeMobileDrawers()
 }
 
 // ── New Chat ──
@@ -389,6 +456,7 @@ async function selectChat(selected: ChatSpec) {
   } finally {
     historyLoading.value = false
   }
+  closeMobileDrawers()
 }
 
 // ── Send Message ──────────────────────────────────────────────────────────
@@ -604,19 +672,38 @@ onMounted(async () => {
     handleSelectAgent(agentsList.value[0])
   }
 })
+
+watch(
+  isMobile,
+  (mobile) => {
+    if (mobile) {
+      mobileLeftCollapsed.value = true
+      mobileRightCollapsed.value = true
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>
 .chat-layout {
   display: flex;
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background: var(--bg);
 }
 
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 109;
+  background: rgba(8, 10, 18, 0.42);
+  backdrop-filter: blur(4px);
+}
+
 .expand-btn {
   position: fixed;
-  z-index: 100;
+  z-index: 130;
   width: 32px; height: 32px;
   display: flex; align-items: center; justify-content: center;
   border: 1px solid var(--border);
@@ -635,6 +722,7 @@ onMounted(async () => {
 
 .chat-main {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -764,5 +852,53 @@ onMounted(async () => {
 @keyframes skeleton-shimmer {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.4; }
+}
+
+@media (max-width: 960px) {
+  .expand-btn {
+    top: calc(12px + var(--safe-top));
+  }
+
+  .expand-btn-left {
+    left: calc(12px + var(--safe-left));
+  }
+
+  .expand-btn-right {
+    right: calc(12px + var(--safe-right));
+  }
+
+  .chat-titlebar {
+    padding:
+      calc(10px + var(--safe-top))
+      calc(56px + var(--safe-right))
+      10px
+      calc(56px + var(--safe-left));
+    min-height: calc(52px + var(--safe-top));
+  }
+
+  .chat-titlebar-name {
+    max-width: 100%;
+    font-size: 13px;
+  }
+
+  .history-loading,
+  .welcome-container {
+    padding: 18px 12px;
+  }
+
+  .welcome-bubble {
+    max-width: 100%;
+    padding: 14px 16px;
+    font-size: 14px;
+  }
+
+  .empty-logo {
+    font-size: 24px;
+  }
+
+  .empty-content p {
+    font-size: 13px;
+    text-align: center;
+  }
 }
 </style>

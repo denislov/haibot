@@ -142,4 +142,24 @@ defineExpose({ scrollToBottom, scrollIfNearBottom })
   opacity: 0;
   transform: translateX(-50%) translateY(8px);
 }
+
+@media (max-width: 960px) {
+  .chat-window {
+    padding: 14px 10px 10px;
+  }
+
+  .chat-content-track {
+    gap: 16px;
+  }
+
+  .chat-empty-state {
+    padding: 72px 0;
+    font-size: 13px;
+    text-align: center;
+  }
+
+  .scroll-bottom-btn {
+    bottom: 10px;
+  }
+}
 </style>

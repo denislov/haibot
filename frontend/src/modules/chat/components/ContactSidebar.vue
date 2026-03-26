@@ -263,4 +263,32 @@ function avatarColor(id: string): string {
   margin-left: auto;
   padding: 7px;
 }
+
+@media (max-width: 960px) {
+  .contact-sidebar {
+    position: fixed;
+    z-index: 120;
+    inset: 0 auto 0 0;
+    width: min(84vw, 320px);
+    max-width: 320px;
+    height: 100dvh;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+    box-shadow: var(--shadow-lg);
+    transition:
+      transform var(--transition-slow),
+      opacity var(--transition-slow);
+  }
+
+  .contact-sidebar.collapsed {
+    width: min(84vw, 320px);
+    transform: translateX(calc(-100% - 16px));
+    opacity: 0;
+    border-right: 1px solid var(--border);
+  }
+
+  .sidebar-footer {
+    padding-bottom: calc(8px + var(--safe-bottom));
+  }
+}
 </style>

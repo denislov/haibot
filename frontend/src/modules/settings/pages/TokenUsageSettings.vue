@@ -137,22 +137,35 @@ onMounted(fetchUsage)
 
 <style scoped>
 .settings-page h2 {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--text-1);
   margin-bottom: 4px;
+  letter-spacing: -0.02em;
 }
 .desc {
   color: var(--text-3);
   font-size: 13px;
-  margin-bottom: 20px;
+  margin-bottom: 4px;
+  max-width: 680px;
+  line-height: 1.55;
 }
 
 .toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 4px;
+  padding: 16px 18px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(180deg, var(--surface-highlight) 0%, rgba(0, 0, 0, 0) 48px),
+    linear-gradient(180deg, var(--bg-card-elevated) 0%, var(--bg-card) 100%);
+  box-shadow:
+    inset 0 1px 0 var(--surface-highlight),
+    0 18px 34px -26px var(--surface-shadow);
 }
 
 h3 {
@@ -166,25 +179,29 @@ h3 {
 .empty-state { color: var(--text-4); font-size: 14px; }
 
 .summary-cards {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
-  margin-bottom: 28px;
 }
 
 .stat-card {
   flex: 1;
-  padding: 24px;
-  border-radius: var(--radius-lg);
+  padding: 24px 22px;
+  border-radius: var(--radius-xl);
   border: 1px solid var(--border);
-  background: var(--bg-card);
-  text-align: center;
+  background:
+    radial-gradient(circle at top right, var(--surface-tint) 0, transparent 34%),
+    linear-gradient(180deg, var(--surface-highlight) 0%, rgba(0, 0, 0, 0) 54px),
+    linear-gradient(180deg, var(--bg-card-elevated) 0%, var(--bg-card) 100%);
+  text-align: left;
 }
 
 .stat-value {
-  font-size: 28px;
+  font-size: 30px;
   font-weight: 700;
   color: var(--text-1);
   margin-bottom: 4px;
+  letter-spacing: -0.03em;
 }
 
 .stat-label {
@@ -194,9 +211,16 @@ h3 {
 
 .table-card {
   padding: 20px;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   border: 1px solid var(--border);
-  background: var(--bg-card);
-  margin-bottom: 20px;
+  background:
+    linear-gradient(180deg, var(--surface-highlight) 0%, rgba(0, 0, 0, 0) 54px),
+    linear-gradient(180deg, var(--bg-card-elevated) 0%, var(--bg-card) 100%);
+}
+
+@media (max-width: 768px) {
+  .summary-cards {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

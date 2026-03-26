@@ -1,7 +1,6 @@
-import api from './index'
+import api, { buildApiUrl, createAuthHeaders } from './index'
+import { notifyUnauthorized } from '@/utils/authSession'
 import type { ChatSpec, AgentMessage, ChatHistory } from '@/types'
-
-declare const BASE_URL: string
 
 const getChatsEndpoint = (agentId?: string) =>
   agentId ? `/agents/${agentId}/chats` : '/chats'
@@ -100,9 +99,6 @@ export async function streamQuery(
     body.metadata = { group_id: groupId }
   }
 
-  const base = (typeof BASE_URL !== 'undefined' && BASE_URL) || ''
-  const apiPrefix = "/api"
-
   let endpoint: string
   if (groupId) {
     endpoint = `/group-chats/${groupId}/stream`
@@ -110,12 +106,8 @@ export async function streamQuery(
   } else {
     endpoint = agentId ? `/agents/${agentId}/console/chat` : '/console/chat'
   }
-  const url = `${base}${apiPrefix}${endpoint}`
-
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (typeof TOKEN !== 'undefined' && TOKEN) {
-    headers['Authorization'] = `Bearer ${TOKEN}`
-  }
+  const url = buildApiUrl(endpoint)
+  const headers = createAuthHeaders({ 'Content-Type': 'application/json' })
 
   try {
     const response = await fetch(url, {
@@ -126,6 +118,9 @@ export async function streamQuery(
     })
 
     if (!response.ok) {
+      if (response.status === 401) {
+        notifyUnauthorized('Invalid or expired token')
+      }
       const errorData = await response.json().catch(() => ({}))
       throw new Error(errorData.detail || `HTTP ${response.status}`)
     }
