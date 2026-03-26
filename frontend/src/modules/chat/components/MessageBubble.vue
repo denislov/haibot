@@ -65,6 +65,19 @@
             :text="block.text"
           />
 
+          <!-- Rich media -->
+          <MediaBlock
+            v-else-if="(
+              block.kind === 'image' ||
+              block.kind === 'audio' ||
+              block.kind === 'video'
+            ) && block.mediaUrl"
+            :kind="block.kind"
+            :url="block.mediaUrl"
+            :format="block.mediaFormat"
+            :name="block.mediaName"
+          />
+
           <!-- Reasoning -->
           <ReasoningBlock
             v-else-if="block.kind === 'reasoning'"
@@ -81,6 +94,7 @@
             :tool-name="block.toolName"
             :tool-args="block.toolArgs"
             :tool-output="block.toolOutput"
+            :tool-status="block.toolStatus"
             :expanded="block.expanded"
             :loading="block.loading"
             @toggle="block.expanded = !block.expanded"
@@ -117,6 +131,7 @@ import type { DisplayMessage } from '@/types'
 import ReasoningBlock from './ReasoningBlock.vue'
 import ToolCallBlock from './ToolCallBlock.vue'
 import MarkdownBlock from './MarkdownBlock.vue'
+import MediaBlock from './MediaBlock.vue'
 
 const props = defineProps<{
   message: DisplayMessage
@@ -130,9 +145,7 @@ defineEmits<{ regenerate: [] }>()
 
 const copied = ref(false)
 
-const hasContent = computed(() =>
-  props.message.blocks.some((b) => b.kind === 'text' && b.text?.trim())
-)
+const hasContent = computed(() => props.message.blocks.length > 0)
 
 const assistantLabel = computed(() => props.message.agentName || 'Assistant')
 const assistantInitial = computed(() => (assistantLabel.value.charAt(0) || 'A').toUpperCase())
@@ -148,8 +161,17 @@ const avatarColor = computed(() => {
 
 function copyMessage() {
   const textBlocks = props.message.blocks
-    .filter((b) => b.kind === 'text' && b.text)
-    .map((b) => b.text)
+    .flatMap((block) => {
+      if (block.kind === 'text' && block.text) return [block.text]
+      if (block.kind === 'tool_call' && block.toolOutput) return [block.toolOutput]
+      if (
+        (block.kind === 'image' || block.kind === 'audio' || block.kind === 'video') &&
+        block.mediaUrl
+      ) {
+        return [block.mediaUrl]
+      }
+      return []
+    })
     .join('\n\n')
   if (!textBlocks) return
   navigator.clipboard.writeText(textBlocks).then(() => {
