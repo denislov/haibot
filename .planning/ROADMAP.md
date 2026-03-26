@@ -49,7 +49,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 Plans:
 - [x] 01-01: Define and persist rich media block and CLI transcript message
   structures across backend chat flows
-- [ ] 01-02: Add dedicated Claude Code, Codex, and Gemini CLI tools with
+- [x] 01-02: Add dedicated Claude Code, Codex, and Gemini CLI tools with
   streaming runtime integration
 - [ ] 01-03: Render and replay rich media blocks and CLI transcript messages
   in the existing frontend chat UI
@@ -61,4 +61,4 @@ Phases execute in numeric order: 1
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Rich Media and External CLI Chat Integration | 1/3 | In Progress|  |
+| 1. Rich Media and External CLI Chat Integration | 2/3 | In Progress|  |
