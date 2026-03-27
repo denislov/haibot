@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """Dedicated wrappers for external coding CLIs."""
-from __future__ import annotations
 
 import asyncio
 import json

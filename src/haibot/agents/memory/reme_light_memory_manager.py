@@ -12,13 +12,13 @@ from typing import TYPE_CHECKING
 from agentscope.message import Msg, TextBlock
 from agentscope.tool import Toolkit, ToolResponse
 
-from copaw.agents.memory.base_memory_manager import BaseMemoryManager
-from copaw.agents.model_factory import create_model_and_formatter
-from copaw.agents.tools import read_file, write_file, edit_file
-from copaw.agents.utils import get_copaw_token_counter
-from copaw.config import load_config
-from copaw.config.config import load_agent_config
-from copaw.constant import EnvVarLoader
+from haibot.agents.memory.base_memory_manager import BaseMemoryManager
+from haibot.agents.model_factory import create_model_and_formatter
+from haibot.agents.tools import read_file, write_file, edit_file
+from haibot.agents.utils import get_haibot_token_counter
+from haibot.config import load_config
+from haibot.config.config import load_agent_config
+from haibot.constant import EnvVarLoader
 
 if TYPE_CHECKING:
     from reme.memory.file_based.reme_in_memory_memory import ReMeInMemoryMemory
@@ -256,7 +256,7 @@ class ReMeLightMemoryManager(BaseMemoryManager):
             messages=messages,
             as_llm=self.chat_model,
             as_llm_formatter=self.formatter,
-            as_token_counter=get_copaw_token_counter(agent_config),
+            as_token_counter=get_haibot_token_counter(agent_config),
             language=agent_config.language,
             max_input_length=agent_config.running.max_input_length,
             compact_ratio=cc.memory_compact_ratio,
@@ -309,7 +309,7 @@ class ReMeLightMemoryManager(BaseMemoryManager):
             messages=messages,
             as_llm=self.chat_model,
             as_llm_formatter=self.formatter,
-            as_token_counter=get_copaw_token_counter(agent_config),
+            as_token_counter=get_haibot_token_counter(agent_config),
             toolkit=self.summary_toolkit,
             language=agent_config.language,
             max_input_length=agent_config.running.max_input_length,
@@ -348,5 +348,5 @@ class ReMeLightMemoryManager(BaseMemoryManager):
             return None
         agent_config = load_agent_config(self.agent_id)
         return self._reme.get_in_memory_memory(
-            as_token_counter=get_copaw_token_counter(agent_config),
+            as_token_counter=get_haibot_token_counter(agent_config),
         )

@@ -5,12 +5,33 @@ from __future__ import annotations
 import json
 
 import pytest
+from agentscope._utils._common import _parse_tool_function
 
+from haibot.agents import tools
 import haibot.agents.tools.external_cli as external_cli
 
 
 def _payload(response):
     return json.loads(response.content[0]["text"])
+
+
+@pytest.mark.parametrize(
+    "tool_name",
+    [
+        "run_claude_code_cli",
+        "run_codex_cli",
+        "run_gemini_cli",
+    ],
+)
+def test_external_cli_tool_schemas_are_parseable(tool_name: str) -> None:
+    schema = _parse_tool_function(
+        getattr(tools, tool_name),
+        False,
+        False,
+        False,
+    )
+
+    assert schema["function"]["name"] == tool_name
 
 
 @pytest.mark.asyncio
