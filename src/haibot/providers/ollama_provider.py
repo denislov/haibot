@@ -16,7 +16,7 @@ from agentscope.model import ChatModelBase
 from haibot.providers.provider import ModelInfo, Provider
 
 if TYPE_CHECKING:
-    from copaw.providers.multimodal_prober import ProbeResult
+    from haibot.providers.multimodal_prober import ProbeResult
 
 
 class OllamaProvider(Provider):

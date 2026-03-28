@@ -1,7 +1,7 @@
 ---
 name: cron
-description: Use this skill only for scheduled or recurring tasks. Manage cron jobs with copaw cron list/create/get/state/pause/resume/delete/run. Always pass --agent-id explicitly. | 仅在需要未来定时执行或周期执行时使用本 skill。用 copaw cron list/create/get/state/pause/resume/delete/run 管理任务；必须显式传 --agent-id
-metadata: { "builtin_skill_version": "1.1", "copaw": { "emoji": "⏰" } }
+description: Use this skill only for scheduled or recurring tasks. Manage cron jobs with haibot cron list/create/get/state/pause/resume/delete/run. Always pass --agent-id explicitly. | 仅在需要未来定时执行或周期执行时使用本 skill。用 haibot cron list/create/get/state/pause/resume/delete/run 管理任务；必须显式传 --agent-id
+metadata: { "builtin_skill_version": "1.1", "haibot": { "emoji": "⏰" } }
 ---
 
 # Cron（定时任务管理）
@@ -50,7 +50,7 @@ metadata: { "builtin_skill_version": "1.1", "copaw": { "emoji": "⏰" } }
 
 ```bash
 # 列出任务
-copaw cron list --agent-id <agent_id>
+haibot cron list --agent-id <agent_id>
 
 # 查看任务详情
 haibot cron get <job_id> --agent-id <agent_id>
@@ -133,7 +133,7 @@ haibot cron create --agent-id <agent_id> -f job_spec.json
 2. 确认执行时间/周期
 3. 确认 channel、target-user、target-session
 4. 显式带上 --agent-id
-5. copaw cron create 创建任务
+5. haibot cron create 创建任务
 6. 后续用 list / state / pause / resume / delete 管理
 ```
 
@@ -170,7 +170,7 @@ haibot cron create --agent-id <agent_id> -f job_spec.json
 暂停、恢复、删除前，先用：
 
 ```bash
-copaw cron list --agent-id <agent_id>
+haibot cron list --agent-id <agent_id>
 ```
 
 找到正确的 `job_id`。
@@ -189,13 +189,13 @@ copaw cron list --agent-id <agent_id>
 ## 帮助信息
 
 ```bash
-copaw cron -h
-copaw cron list -h
-copaw cron create -h
-copaw cron get -h
-copaw cron state -h
-copaw cron pause -h
-copaw cron resume -h
-copaw cron delete -h
-copaw cron run -h
+haibot cron -h
+haibot cron list -h
+haibot cron create -h
+haibot cron get -h
+haibot cron state -h
+haibot cron pause -h
+haibot cron resume -h
+haibot cron delete -h
+haibot cron run -h
 ```

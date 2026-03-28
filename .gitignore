@@ -19,6 +19,9 @@ dist/
 # Console frontend build (generated in Docker/CI, do not commit)
 src/haibot/console/dist/
 src/haibot/console/
+src/copaw/console/dist/
+src/copaw/console/
+console/.cursor/
 
 # frontend (website)
 website/node_modules/

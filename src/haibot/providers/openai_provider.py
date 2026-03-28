@@ -14,7 +14,7 @@ from openai import APIError, AsyncOpenAI
 from haibot.providers.provider import ModelInfo, Provider
 
 if TYPE_CHECKING:
-    from copaw.providers.multimodal_prober import ProbeResult
+    from haibot.providers.multimodal_prober import ProbeResult
 
 logger = logging.getLogger(__name__)
 

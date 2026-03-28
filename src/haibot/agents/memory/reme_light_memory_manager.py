@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=too-many-branches
 # mypy: ignore-errors
-"""ReMeLight-backed memory manager for CoPaw agents."""
+"""ReMeLight-backed memory manager for HaiBot agents."""
 import importlib.metadata
 import json
 import logging
@@ -25,11 +25,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_EXPECTED_REME_VERSION = "0.3.1.4"
+_EXPECTED_REME_VERSION = "0.3.1.6"
 
 
 class ReMeLightMemoryManager(BaseMemoryManager):
-    """Memory manager that wraps ReMeLight for CoPaw agents via composition.
+    """Memory manager that wraps ReMeLight for HaiBot agents via composition.
 
     Holds a ``ReMeLight`` instance (``self._reme``) and delegates all
     lifecycle / search / compaction calls to it.
@@ -102,7 +102,7 @@ class ReMeLightMemoryManager(BaseMemoryManager):
             default_embedding_model_config=emb_config,
             default_file_store_config={
                 "backend": memory_backend,
-                "store_name": "copaw",
+                "store_name": "haibot",
                 "vector_enabled": vector_enabled,
                 "fts_enabled": fts_enabled,
             },
@@ -290,7 +290,7 @@ class ReMeLightMemoryManager(BaseMemoryManager):
                 )
                 logger.error(
                     "Please upload the log: "
-                    "https://github.com/agentscope-ai/CoPaw/issues",
+                    "https://github.com/agentscope-ai/HaiBot/issues",
                 )
             except Exception as _e:
                 logger.error(f"Failed to save invalid compact result: {_e}")

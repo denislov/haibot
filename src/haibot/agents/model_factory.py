@@ -357,7 +357,7 @@ def create_model_and_formatter(
         if not global_model:
             raise ValueError(
                 "No active model configured. "
-                "Please configure a model using 'copaw models config' "
+                "Please configure a model using 'haibot models config' "
                 "or set an agent-specific model.",
             )
         provider_id = global_model.provider_id

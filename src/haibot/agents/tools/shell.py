@@ -104,8 +104,8 @@ def _execute_subprocess_sync(
         cmd = _sanitize_win_cmd(cmd)
         wrapped = f'cmd /D /S /C "{cmd}"'
 
-        stdout_fd, stdout_path = tempfile.mkstemp(prefix="copaw_out_")
-        stderr_fd, stderr_path = tempfile.mkstemp(prefix="copaw_err_")
+        stdout_fd, stdout_path = tempfile.mkstemp(prefix="haibot_out_")
+        stderr_fd, stderr_path = tempfile.mkstemp(prefix="haibot_err_")
         stdout_file = os.fdopen(stdout_fd, "wb")
         stderr_file = os.fdopen(stderr_fd, "wb")
 
@@ -181,16 +181,16 @@ async def execute_shell_command(
     timeout: int = 60,
     cwd: Optional[Path] = None,
 ) -> ToolResponse:
-    """Execute given command and return the return code, standard output and
-    error within <returncode></returncode>, <stdout></stdout> and
-    <stderr></stderr> tags.
+    """Execute a shell command and return its output.
+
+    Platform shells: Windows uses cmd.exe; Linux/macOS use /bin/sh or /bin/bash.
 
     IMPORTANT: Always consider the operating system before choosing commands.
 
     Args:
         command (`str`):
             The shell command to execute.
-        timeout (`int`, defaults to `10`):
+        timeout (`int`, defaults to `60`):
             The maximum time (in seconds) allowed for the command to run.
             Default is 60 seconds.
         cwd (`Optional[Path]`, defaults to `None`):
